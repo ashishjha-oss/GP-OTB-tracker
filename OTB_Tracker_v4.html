@@ -1,0 +1,2903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OTB Implementation Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0A0C0F;--bg1:#111418;--bg2:#181C22;--bg3:#1E2329;--bg4:#252B34;
+  --bd:#252B34;--bd2:#2E3540;
+  --tx:#E8ECF0;--tx2:#8B95A1;--tx3:#4A5260;
+  --blue:#3B82F6;--blue2:#60A5FA;--blue-bg:rgba(59,130,246,.12);--blue-bd:rgba(59,130,246,.3);
+  --green:#22C55E;--green-bg:rgba(34,197,94,.12);--green-bd:rgba(34,197,94,.3);
+  --amber:#F59E0B;--amber-bg:rgba(245,158,11,.12);--amber-bd:rgba(245,158,11,.3);
+  --red:#EF4444;--red-bg:rgba(239,68,68,.12);--red-bd:rgba(239,68,68,.3);
+  --purple:#A78BFA;--purple-bg:rgba(167,139,250,.12);
+  --r:6px;--rl:10px;--rxl:14px;
+  --f:'IBM Plex Sans',sans-serif;--m:'IBM Plex Mono',monospace;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:var(--f);background:var(--bg);color:var(--tx);font-size:13px;line-height:1.5}
+/* ── LAYOUT ── */
+.app{display:flex;height:100vh;overflow:hidden}
+/* SIDEBAR */
+.sb{width:216px;flex-shrink:0;background:var(--bg1);border-right:1px solid var(--bd);display:flex;flex-direction:column;transition:width .2s ease}
+.sb.col{width:50px}
+.sb-top{display:flex;align-items:center;gap:9px;padding:14px 12px;border-bottom:1px solid var(--bd);min-height:52px}
+.sb-ico{width:26px;height:26px;border-radius:var(--r);background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
+.sb-lbl{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;flex:1}
+.sb-tog{background:none;border:none;color:var(--tx3);cursor:pointer;font-size:14px;padding:2px;flex-shrink:0;line-height:1}
+.sb-tog:hover{color:var(--tx)}
+nav{flex:1;padding:6px;overflow-y:auto}
+.ni{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:var(--r);cursor:pointer;color:var(--tx2);font-size:12px;font-weight:500;border:none;background:none;width:100%;text-align:left;transition:all .12s;position:relative;white-space:nowrap;overflow:hidden}
+.ni:hover{background:var(--bg2);color:var(--tx)}
+.ni.on{background:var(--blue-bg);color:var(--blue)}
+.ni-ic{font-size:14px;width:16px;text-align:center;flex-shrink:0}
+.ni-nb{background:var(--red);color:#fff;font-size:9px;font-weight:700;border-radius:100px;padding:0 5px;margin-left:auto;flex-shrink:0;line-height:16px}
+.sb-bot{padding:8px;border-top:1px solid var(--bd)}
+.sb-user{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:var(--r);background:var(--bg2)}
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--bd);background:var(--bg1);flex-shrink:0;gap:12px}
+.ph-l .pt{font-size:14px;font-weight:600}
+.ph-l .ps{font-size:11px;color:var(--tx3);margin-top:1px}
+.ph-r{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.pb{flex:1;overflow-y:auto;padding:18px 20px}
+/* ── COMPONENTS ── */
+.av{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:var(--blue-bg);border:1px solid var(--blue-bd);color:var(--blue2);font-weight:600;flex-shrink:0}
+.av-s{width:22px;height:22px;font-size:8px}
+.av-m{width:28px;height:28px;font-size:10px}
+.av-l{width:34px;height:34px;font-size:12px}
+/* Badges */
+.bx{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:100px;font-size:10px;font-weight:600;white-space:nowrap}
+.bx-g{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd)}
+.bx-a{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-bd)}
+.bx-r{background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd)}
+.bx-b{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-bd)}
+.bx-p{background:var(--purple-bg);color:var(--purple);border:1px solid rgba(167,139,250,.3)}
+.bx-n{background:var(--bg2);color:var(--tx2);border:1px solid var(--bd2)}
+.dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;display:inline-block}
+.dot-g{background:var(--green)}.dot-a{background:var(--amber)}.dot-r{background:var(--red)}
+/* Stage chip */
+.sc{font-size:10px;font-weight:500;padding:2px 7px;border-radius:4px;background:var(--bg3);color:var(--tx2);border:1px solid var(--bd);white-space:nowrap}
+/* Progress */
+.pw{background:var(--bg3);border-radius:100px;overflow:hidden}
+.pb2{border-radius:100px;transition:width .3s}
+.p-g{background:var(--green)}.p-a{background:var(--amber)}.p-r{background:var(--red)}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:5px;border-radius:var(--r);font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--bd);background:var(--bg2);color:var(--tx);transition:all .12s;font-family:var(--f);white-space:nowrap;padding:5px 12px}
+.btn:hover{background:var(--bg3);border-color:var(--bd2)}
+.btn:active{transform:scale(.98)}
+.btn-p{background:var(--blue);color:#fff;border-color:rgba(59,130,246,.6)}
+.btn-p:hover{background:#2563EB}
+.btn-g{background:var(--green-bg);color:var(--green);border-color:var(--green-bd)}
+.btn-g:hover{background:rgba(34,197,94,.2)}
+.btn-r{background:var(--red-bg);color:var(--red);border-color:var(--red-bd)}
+.btn-r:hover{background:rgba(239,68,68,.2)}
+.btn-sm{padding:3px 9px;font-size:11px}
+.btn-xs{padding:2px 7px;font-size:10px}
+/* Cards */
+.card{background:var(--bg1);border:1px solid var(--bd);border-radius:var(--rl)}
+.card-p{padding:14px 16px}
+.card-sm{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px}
+/* Grid */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.gm{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px}
+/* Metrics */
+.met{background:var(--bg1);border:1px solid var(--bd);border-radius:var(--rl);padding:12px 14px}
+.met-l{font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px}
+.met-v{font-size:22px;font-weight:600;line-height:1;font-family:var(--m)}
+.met-s{font-size:10px;color:var(--tx3);margin-top:2px}
+/* Table */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{font-size:10px;font-weight:500;color:var(--tx3);text-align:left;padding:8px 12px;border-bottom:1px solid var(--bd);background:var(--bg2);white-space:nowrap;text-transform:uppercase;letter-spacing:.4px;cursor:pointer;user-select:none}
+th:hover{color:var(--tx2)}
+td{padding:8px 12px;border-bottom:1px solid var(--bd);vertical-align:middle;color:var(--tx)}
+tr:hover td{background:rgba(59,130,246,.04)}
+tr:last-child td{border-bottom:none}
+/* Alert strip */
+.al{display:flex;gap:10px;padding:10px 14px;border-radius:var(--r);border-left:3px solid;margin-bottom:7px;font-size:12px;cursor:pointer;transition:opacity .12s}
+.al:hover{opacity:.85}
+.al-r{background:var(--red-bg);border-left-color:var(--red);color:var(--red)}
+.al-a{background:var(--amber-bg);border-left-color:var(--amber);color:var(--amber)}
+/* Kanban */
+.kb-wrap{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;height:calc(100vh - 110px)}
+.kb-col{flex-shrink:0;width:185px;display:flex;flex-direction:column}
+.kb-hd{font-size:10px;font-weight:600;color:var(--tx2);padding:6px 10px;border-radius:var(--r);background:var(--bg2);border:1px solid var(--bd);margin-bottom:7px;display:flex;justify-content:space-between;text-transform:uppercase;letter-spacing:.4px}
+.kb-card{background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r);padding:10px;margin-bottom:5px;cursor:pointer;transition:all .12s}
+.kb-card:hover{border-color:var(--blue-bd);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.3)}
+/* Detail pane */
+.dp-ov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:80;display:none}
+.dp-ov.on{display:flex;justify-content:flex-end}
+.dp{width:520px;max-width:100vw;height:100%;background:var(--bg1);border-left:1px solid var(--bd);overflow-y:auto;display:flex;flex-direction:column}
+.dp-hd{display:flex;align-items:flex-start;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--bd);position:sticky;top:0;background:var(--bg1);z-index:5}
+/* Pane tabs */
+.ptabs{display:flex;border-bottom:1px solid var(--bd);padding:0 18px;flex-shrink:0}
+.ptab{padding:8px 11px;font-size:11px;font-weight:500;color:var(--tx3);cursor:pointer;border-bottom:2px solid transparent;transition:all .12s;white-space:nowrap}
+.ptab:hover{color:var(--tx2)}
+.ptab.on{color:var(--blue);border-bottom-color:var(--blue)}
+.ptab-nb{font-size:9px;background:var(--red-bg);color:var(--red);border-radius:100px;padding:0 4px;margin-left:3px}
+/* Lifecycle */
+.lc-row{display:flex;gap:10px;align-items:flex-start;padding:5px 0}
+.lc-nd{width:18px;height:18px;border-radius:50%;border:2px solid var(--bd2);background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:var(--tx3);flex-shrink:0;margin-top:1px}
+.lc-nd.done{background:var(--green);border-color:var(--green);color:#fff}
+.lc-nd.cur{background:var(--blue);border-color:var(--blue);color:#fff}
+.lc-nd.blk{background:var(--red);border-color:var(--red);color:#fff}
+.lc-ln{width:1px;background:var(--bd);height:16px;margin:2px 8px}
+/* Modal */
+.mo{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;display:none;align-items:center;justify-content:center;padding:16px}
+.mo.on{display:flex}
+.mo-box{background:var(--bg1);border:1px solid var(--bd);border-radius:var(--rxl);width:580px;max-width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.mo-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--bd);flex-shrink:0}
+.mo-hd-title{font-size:14px;font-weight:600}
+.mo-body{padding:18px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:12px}
+.mo-ft{padding:12px 18px;border-top:1px solid var(--bd);display:flex;gap:8px;background:var(--bg2);border-radius:0 0 var(--rxl) var(--rxl);flex-shrink:0}
+/* Form fields */
+.fl{display:flex;flex-direction:column;gap:4px}
+.fl label{font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px}
+.fl input,.fl select,.fl textarea{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:7px 10px;font-size:12px;color:var(--tx);font-family:var(--f);width:100%;transition:border-color .12s}
+.fl input:focus,.fl select:focus,.fl textarea:focus{outline:none;border-color:var(--blue)}
+.fl textarea{resize:vertical;min-height:68px;line-height:1.5}
+.fl select option{background:var(--bg2);color:var(--tx)}
+.fg{display:grid;gap:10px}
+.fg2{grid-template-columns:1fr 1fr}
+.fg3{grid-template-columns:1fr 1fr 1fr}
+/* Filters */
+.fbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.fi{background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r);padding:6px 10px;font-size:12px;color:var(--tx);font-family:var(--f);transition:border-color .12s}
+.fi:focus{outline:none;border-color:var(--blue)}
+.fi-s{flex:1;min-width:180px}
+/* Toast */
+.toast{position:fixed;bottom:20px;right:20px;padding:10px 16px;border-radius:var(--r);font-size:12px;font-weight:500;z-index:999;opacity:0;transform:translateY(6px);transition:all .22s;pointer-events:none;border:1px solid}
+.toast.on{opacity:1;transform:translateY(0)}
+.toast-ok{background:var(--green-bg);color:var(--green);border-color:var(--green-bd)}
+.toast-er{background:var(--red-bg);color:var(--red);border-color:var(--red-bd)}
+/* Health ring */
+.hr-wrap{display:flex;flex-direction:column;align-items:center;gap:2px}
+/* Open points */
+.op-row{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--bd)}
+.op-row:last-child{border-bottom:none}
+/* Checklist */
+.cl-row{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--bd);cursor:pointer;transition:all .12s}
+.cl-row:last-child{border-bottom:none}
+.cl-row:hover{color:var(--blue)}
+.cl-chk{width:15px;height:15px;border-radius:3px;border:1.5px solid var(--bd2);background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;transition:all .12s}
+.cl-chk.done{background:var(--green);border-color:var(--green);color:#fff}
+/* Misc */
+.fx{display:flex}.fxa{align-items:center}.fxb{justify-content:space-between}.fxw{flex-wrap:wrap}
+.f1{flex:1}.gap1{gap:4px}.gap2{gap:8px}.gap3{gap:12px}.gap4{gap:16px}
+.mt1{margin-top:4px}.mt2{margin-top:8px}.mt3{margin-top:12px}
+.mb1{margin-bottom:4px}.mb2{margin-bottom:8px}.mb3{margin-bottom:12px}.mb4{margin-bottom:16px}
+.fn{font-size:12px}.fx-s{font-size:11px}.fx-xs{font-size:10px}
+.fw5{font-weight:500}.fw6{font-weight:600}
+.tc-2{color:var(--tx2)}.tc-3{color:var(--tx3)}
+.t-g{color:var(--green)}.t-a{color:var(--amber)}.t-r{color:var(--red)}.t-b{color:var(--blue)}
+.mono{font-family:var(--m)}
+.trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.divider{height:1px;background:var(--bd);margin:12px 0}
+.sec-title{font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px}
+/* Scrollbar */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:100px}
+/* Danger confirm overlay */
+.confirm-box{background:var(--bg1);border:1px solid var(--bd);border-radius:var(--rl);padding:20px;width:340px;text-align:center}
+.confirm-box h3{font-size:14px;margin-bottom:8px}
+.confirm-box p{font-size:12px;color:var(--tx2);margin-bottom:16px}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sb" id="sb">
+    <div class="sb-top">
+      <div class="sb-ico">OTB</div>
+      <span class="sb-lbl">Impl. Tracker</span>
+      <button class="sb-tog" id="sb-tog" onclick="toggleSB()">&#8249;</button>
+    </div>
+    <nav id="nav">
+      <button class="ni on" id="ni-dashboard" onclick="goPage('dashboard')"><span class="ni-ic">◈</span><span class="ni-tx">Dashboard</span></button>
+      <button class="ni" id="ni-accounts"  onclick="goPage('accounts')"><span class="ni-ic">⊞</span><span class="ni-tx">Accounts</span></button>
+      <button class="ni" id="ni-kanban"    onclick="goPage('kanban')"><span class="ni-ic">⋮⋮</span><span class="ni-tx">Kanban</span></button>
+      <button class="ni" id="ni-lifecycle" onclick="goPage('lifecycle')"><span class="ni-ic">↺</span><span class="ni-tx">Lifecycle</span></button>
+         <button class="ni" id="ni-alerts"    onclick="goPage('alerts')"><span class="ni-ic">&#9889;</span><span class="ni-tx">Alerts <span class="ni-nb" id="nb">0</span></span></button>
+      <button class="ni" id="ni-health"    onclick="goPage('health')"><span class="ni-ic">&#128154;</span><span class="ni-tx">Health Pulse</span></button>
+      <button class="ni" id="ni-capacity"  onclick="goPage('capacity')"><span class="ni-ic">&#128202;</span><span class="ni-tx">Capacity</span></button>
+      <button class="ni" id="ni-playbooks" onclick="goPage('playbooks')"><span class="ni-ic">&#128214;</span><span class="ni-tx">Playbooks</span></button>
+      <button class="ni" id="ni-reports"   onclick="goPage('reports')"><span class="ni-ic">&#128196;</span><span class="ni-tx">Reports</span></button>
+      <button class="ni" id="ni-settings"  onclick="goPage('settings')"><span class="ni-ic">&#9881;</span><span class="ni-tx">Settings</span></button>
+    </nav>
+    <div class="sb-bot">
+      <div class="sb-user">
+        <div class="av av-s">CS</div>
+        <div class="f1 trunc"><div class="fx-s fw5">CSM Team</div><div class="fx-xs tc-3">Administrator</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="ph">
+      <div class="ph-l">
+        <div class="pt" id="pt">Dashboard</div>
+        <div class="ps" id="ps"></div>
+      </div>
+      <div class="ph-r" id="ph-r"></div>
+    </div>
+    <div class="pb" id="pb"></div>
+  </div>
+</div>
+
+<!-- DETAIL PANE -->
+<div class="dp-ov" id="dp-ov" onclick="if(event.target===this)closeDP()">
+  <div class="dp" id="dp"></div>
+</div>
+
+<!-- MODAL -->
+<div class="mo" id="mo" onclick="if(event.target===this)closeMO()">
+  <div class="mo-box" id="mo-box"></div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════
+const STAGES=[
+  {id:'handover',   name:'Sales Handover',       sla:5,  entry:'Deal closed, contract signed',       exit:'Kickoff call completed, team assigned'},
+  {id:'discovery',  name:'Discovery & Review',    sla:10, entry:'Kickoff done, NDA signed',            exit:'Requirements doc approved by customer'},
+  {id:'integration',name:'Integration Setup',     sla:14, entry:'Integration Team assigned, sandbox access granted', exit:'UAT signed by Integration Team + Customer, Handover document signed by Integration Team Lead'},
+  {id:'config',     name:'Configuration',         sla:12, entry:'Integration done, data mapped',       exit:'Config sign-off from customer'},
+  {id:'training',   name:'Training',              sla:7,  entry:'Config complete, LMS access',         exit:'Training sign-off, attendance 80%+'},
+  {id:'onsite',     name:'Onsite Implementation', sla:5,  entry:'Training done, site ready',           exit:'Go-live checklist cleared on-site'},
+  {id:'golive',     name:'Already Live',           sla:30, entry:'Customer is live in production — system already running', exit:'Usage confirmed, hypercare complete, audit ready to begin'},
+  {id:'audit',      name:'Audit & Validation',    sla:7,  entry:'Go-live done, test data loaded',      exit:'Audit report signed, zero P1 issues'},
+  {id:'stab',       name:'Stabilization',         sla:30, entry:'Audit passed, sign-off received',     exit:'30 days stable, CSM hand-off'},
+];
+const SMAP=Object.fromEntries(STAGES.map(s=>[s.id,s]));
+const SIDX=Object.fromEntries(STAGES.map((s,i)=>[s.id,i]));
+const CHECKLIST=['System access verified for all users','Integration endpoints tested and passing','User accounts created and roles assigned','UAT sign-off received from customer','Go-live checklist approved'];
+const INTEGRATION_CHECKLIST=[
+  'Integration Team owner named and confirmed in writing',
+  'Integration Requirements Document sent to customer',
+  'Sandbox access confirmed by customer IT',
+  'Daily standup meeting schedule locked',
+  'Weekly status meeting schedule locked',
+  'API endpoints configured and tested individually',
+  'Webhooks set up and payload verified',
+  'Data mapping document completed and signed off',
+  'End-to-end integration test (Round 1) completed',
+  'Top-to-Top call held (if triggered)',
+  'UAT test cases document prepared (20+ scenarios)',
+  'Integration UAT session executed by customer IT',
+  'All UAT defects resolved (P1 count = 0)',
+  'UAT Sign-off received from Integration Team Lead',
+  'Customer UAT Sign-off received',
+  'Handover package received from Integration Team',
+  'Integration Sign-off document signed by CSM',
+];
+const LIVE_CHECKLIST=[
+  'Go-live date logged in tracker',
+  'Day 1 production health check completed',
+  'All users can log in successfully',
+  'Core transactions processing correctly in production',
+  'Day 1 usage numbers documented',
+  'Old system / manual process confirmed shut down',
+  'Week 1 daily check-in schedule confirmed with customer',
+  'P1 production issues resolved (count must be zero)',
+  'User adoption tracked — 80%+ active users by Week 2',
+  'NPS survey sent and scores collected from users',
+  'Weekly status report sent to customer management',
+  'All P1 and P2 open points resolved by Day 14',
+  '30-day hypercare review meeting completed',
+  'Account briefed and moved to Audit and Validation stage',
+];
+const REGIONS=['Global','KSA','UAE','Oman','Pakistan','Malaysia','South Africa','Tanzania','Myanmar','Rwanda','India','Philippines'];
+const PRIOS=['High','Medium','Low'];
+const MRRS=['$25k+','$10k-$25k','$5k-$10k','<$5k','Not Set'];
+
+// ═══════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════
+let nextId=33;
+let accounts=[
+  {id:1,jira:'OTB-30',company:'Caraagy',region:'KSA',stage:'golive',status:'green',mrr:'$5k-$10k',prog:95,plannedGL:'2026-02-23',expectedGL:'2026-02-23',daysInStage:38,nextMile:'Production monitoring active',blocker:'',owner:'Naveen N',lastAct:'2026-03-17',nextMeet:'',openPts:0,auditSt:'Completed',priority:'Medium',notes:'',meetings:[{id:1,date:'2026-03-17',title:'Go-live review',notes:'All systems green. Production stable.'}],points:[],checks:[true,true,true,true,true]},
+  {id:2,jira:'OTB-14',company:'AX XpressFit',region:'Global',stage:'golive',status:'green',mrr:'$5k-$10k',prog:95,plannedGL:'2025-07-21',expectedGL:'2025-07-21',daysInStage:45,nextMile:'Hypercare and adoption monitoring',blocker:'',owner:'Karthik N',lastAct:'2026-03-11',nextMeet:'',openPts:0,auditSt:'Completed',priority:'Medium',notes:'',meetings:[{id:1,date:'2026-03-11',title:'Monthly check-in',notes:'Stable. No issues.'}],points:[],checks:[true,true,true,true,true]},
+  {id:3,jira:'OTB-24',company:'AX New Account',region:'Global',stage:'golive',status:'yellow',mrr:'$10k-$25k',prog:95,plannedGL:'2025-08-27',expectedGL:'2025-08-27',daysInStage:30,nextMile:'Hypercare and adoption monitoring',blocker:'',owner:'Karthik N',lastAct:'2026-03-11',nextMeet:'',openPts:0,auditSt:'Completed',priority:'High',notes:'',meetings:[],points:[],checks:[true,true,true,true,false]},
+  {id:4,jira:'OTB-6',company:'MotorWorld',region:'Global',stage:'golive',status:'green',mrr:'$5k-$10k',prog:95,plannedGL:'2025-07-21',expectedGL:'2025-07-21',daysInStage:40,nextMile:'Hypercare and adoption monitoring',blocker:'',owner:'Naveen N',lastAct:'2025-09-12',nextMeet:'',openPts:0,auditSt:'Completed',priority:'Medium',notes:'',meetings:[],points:[],checks:[true,true,true,true,true]},
+  {id:5,jira:'OTB-1',company:'TATA Workshop POC',region:'South Africa',stage:'golive',status:'yellow',mrr:'$10k-$25k',prog:95,plannedGL:'2026-06-30',expectedGL:'2026-07-15',daysInStage:50,nextMile:'Production monitoring active',blocker:'',owner:'Karthik N',lastAct:'2026-03-11',nextMeet:'2026-04-30',openPts:0,auditSt:'Completed',priority:'High',notes:'',meetings:[],points:[],checks:[true,true,true,false,false]},
+  {id:6,jira:'OTB-2',company:'Petromin Onboarding',region:'UAE',stage:'golive',status:'green',mrr:'$10k-$25k',prog:95,plannedGL:'2025-07-01',expectedGL:'2025-07-01',daysInStage:20,nextMile:'Hypercare and adoption monitoring',blocker:'',owner:'Ashish J',lastAct:'2025-09-25',nextMeet:'',openPts:0,auditSt:'Completed',priority:'High',notes:'',meetings:[],points:[],checks:[true,true,true,true,true]},
+  {id:7,jira:'OTB-8',company:'AX Rwanda',region:'Rwanda',stage:'golive',status:'green',mrr:'$5k-$10k',prog:95,plannedGL:'2026-06-30',expectedGL:'2026-07-15',daysInStage:10,nextMile:'Production monitoring active',blocker:'',owner:'Karthik N',lastAct:'2026-01-13',nextMeet:'2026-04-29',openPts:0,auditSt:'Completed',priority:'Medium',notes:'',meetings:[],points:[],checks:[true,true,true,true,false]},
+  {id:8,jira:'OTB-7',company:'Lezof',region:'Global',stage:'golive',status:'green',mrr:'$10k-$25k',prog:95,plannedGL:'2025-08-15',expectedGL:'2025-08-15',daysInStage:12,nextMile:'Hypercare and adoption monitoring',blocker:'',owner:'Naveen N',lastAct:'2026-04-06',nextMeet:'',openPts:0,auditSt:'Completed',priority:'High',notes:'',meetings:[],points:[],checks:[true,true,true,true,true]},
+  {id:9,jira:'OTB-4',company:'AC Delco',region:'KSA',stage:'integration',status:'yellow',mrr:'$5k-$10k',prog:38,plannedGL:'2025-08-15',expectedGL:'2025-08-15',daysInStage:12,nextMile:'API integration sign-off',blocker:'',owner:'Abdul M',lastAct:'2026-04-13',nextMeet:'2026-04-30',openPts:0,auditSt:'Not Started',priority:'Medium',notes:'',meetings:[],points:[],checks:[false,false,false,false,false]},
+  {id:10,jira:'OTB-5',company:'HDX',region:'Global',stage:'stab',status:'green',mrr:'$5k-$10k',prog:100,plannedGL:'2025-06-26',expectedGL:'2025-06-26',daysInStage:5,nextMile:'Testimonial collection',blocker:'',owner:'Naveen N',lastAct:'2025-12-12',nextMeet:'',openPts:0,auditSt:'Completed',priority:'Medium',notes:'',meetings:[],points:[],checks:[true,true,true,true,true]},
+  {id:11,jira:'OTB-18',company:'MG Myanmar (Old)',region:'Myanmar',stage:'golive',status:'green',mrr:'$5k-$10k',prog:95,plannedGL:'2025-09-29',expectedGL:'2025-09-29',daysInStage:8,nextMile:'Hypercare and adoption monitoring',blocker:'',owner:'Naveen N',lastAct:'2025-12-12',nextMeet:'',openPts:0,auditSt:'Completed',priority:'Medium',notes:'',meetings:[],points:[],checks:[true,true,true,true,true]},
+  {id:12,jira:'OTB-17',company:'Q Tire',region:'Global',stage:'golive',status:'red',mrr:'$10k-$25k',prog:95,plannedGL:'2025-11-28',expectedGL:'2025-11-28',daysInStage:60,nextMile:'Hypercare and adoption monitoring',blocker:'High priority — CSM update needed',owner:'Karthik N',lastAct:'2026-03-30',nextMeet:'',openPts:1,auditSt:'Completed',priority:'High',notes:'',meetings:[{id:1,date:'2026-03-30',title:'Escalation call',notes:'Customer requesting urgent update on timeline.'}],points:[{id:1,title:'CSM update overdue',prio:'High',owner:'Karthik N',age:25,blocker:true,status:'Open',notes:''}],checks:[true,true,true,true,true]},
+  {id:13,jira:'OTB-22',company:'Petromin Pakistan',region:'Pakistan',stage:'golive',status:'green',mrr:'$5k-$10k',prog:95,plannedGL:'2026-06-30',expectedGL:'2026-07-15',daysInStage:15,nextMile:'Production monitoring active',blocker:'',owner:'Naveen N',lastAct:'2026-03-24',nextMeet:'2026-04-28',openPts:0,auditSt:'Completed',priority:'Medium',notes:'',meetings:[],points:[],checks:[true,true,true,true,false]},
+  {id:14,jira:'OTB-23',company:'Petromin Malaysia',region:'Malaysia',stage:'golive',status:'green',mrr:'$5k-$10k',prog:95,plannedGL:'2026-06-30',expectedGL:'2026-07-15',daysInStage:10,nextMile:'Production monitoring active',blocker:'',owner:'Naveen N',lastAct:'2026-03-23',nextMeet:'2026-04-27',openPts:0,auditSt:'Completed',priority:'Medium',notes:'',meetings:[],points:[],checks:[true,true,true,true,false]},
+  {id:15,jira:'OTB-3',company:'Blue Zone (Old)',region:'Global',stage:'training',status:'yellow',mrr:'$5k-$10k',prog:65,plannedGL:'2025-09-18',expectedGL:'2025-09-18',daysInStage:20,nextMile:'Training completion sign-off',blocker:'',owner:'Naveen N',lastAct:'2025-09-18',nextMeet:'',openPts:0,auditSt:'Not Started',priority:'Medium',notes:'',meetings:[],points:[],checks:[false,false,false,false,false]},
+  {id:16,jira:'OTB-9',company:'Topaz (July)',region:'Global',stage:'audit',status:'yellow',mrr:'$5k-$10k',prog:88,plannedGL:'2026-06-30',expectedGL:'2026-07-15',daysInStage:25,nextMile:'Audit sign-off',blocker:'',owner:'Naveen N',lastAct:'2025-07-29',nextMeet:'',openPts:0,auditSt:'In Progress',priority:'Medium',notes:'',meetings:[],points:[],checks:[true,true,true,false,false]},
+  {id:17,jira:'OTB-10',company:'AX (December)',region:'Global',stage:'audit',status:'yellow',mrr:'$5k-$10k',prog:88,plannedGL:'2026-06-30',expectedGL:'2026-07-15',daysInStage:18,nextMile:'Audit sign-off',blocker:'',owner:'Karthik N',lastAct:'2026-01-13',nextMeet:'',openPts:0,auditSt:'In Progress',priority:'Medium',notes:'',meetings:[],points:[],checks:[true,true,false,false,false]},
+  {id:18,jira:'OTB-11',company:'Shift Inc (July)',region:'Global',stage:'audit',status:'yellow',mrr:'$5k-$10k',prog:88,plannedGL:'2026-06-30',expectedGL:'2026-07-15',daysInStage:22,nextMile:'Audit sign-off',blocker:'',owner:'Naveen N',lastAct:'2025-07-29',nextMeet:'',openPts:0,auditSt:'In Progress',priority:'Medium',notes:'',meetings:[],points:[],checks:[true,true,true,false,false]},
+  {id:19,jira:'OTB-12',company:'Alure (July)',region:'Global',stage:'audit',status:'yellow',mrr:'$5k-$10k',prog:88,plannedGL:'2026-06-30',expectedGL:'2026-07-15',daysInStage:20,nextMile:'Audit sign-off',blocker:'',owner:'Naveen N',lastAct:'2025-07-29',nextMeet:'',openPts:0,auditSt:'In Progress',priority:'Medium',notes:'',meetings:[],points:[],checks:[true,true,false,false,false]},
+  {id:20,jira:'OTB-13',company:'GAV (July)',region:'Global',stage:'audit',status:'yellow',mrr:'$5k-$10k',prog:88,plannedGL:'2026-06-30',expectedGL:'2026-07-15',daysInStage:19,nextMile:'Audit sign-off',blocker:'',owner:'Naveen N',lastAct:'2025-07-29',nextMeet:'',openPts:0,auditSt:'In Progress',priority:'Medium',notes:'',meetings:[],points:[],checks:[true,false,false,false,false]},
+  {id:21,jira:'OTB-15',company:'Al-Jomiah (Pitlane)',region:'KSA',stage:'golive',status:'yellow',mrr:'$10k-$25k',prog:95,plannedGL:'2025-10-30',expectedGL:'2025-10-30',daysInStage:14,nextMile:'Hypercare and adoption monitoring',blocker:'',owner:'Abdul M',lastAct:'2026-02-17',nextMeet:'',openPts:1,auditSt:'Completed',priority:'High',notes:'',meetings:[],points:[{id:1,title:'Post go-live review pending',prio:'Medium',owner:'Abdul M',age:12,blocker:false,status:'Open',notes:''}],checks:[true,true,true,true,true]},
+  {id:22,jira:'OTB-16',company:'Valvoline (July)',region:'Global',stage:'audit',status:'yellow',mrr:'$5k-$10k',prog:88,plannedGL:'2026-06-30',expectedGL:'2026-07-15',daysInStage:28,nextMile:'Audit sign-off',blocker:'',owner:'Naveen N',lastAct:'2025-09-10',nextMeet:'',openPts:0,auditSt:'In Progress',priority:'Medium',notes:'',meetings:[],points:[],checks:[true,true,true,false,false]},
+  {id:23,jira:'OTB-19',company:'Petromin Testimonial',region:'Global',stage:'stab',status:'green',mrr:'$5k-$10k',prog:100,plannedGL:'2026-06-30',expectedGL:'2026-07-15',daysInStage:5,nextMile:'Testimonial collection',blocker:'',owner:'Ashish J',lastAct:'2025-08-11',nextMeet:'',openPts:0,auditSt:'Completed',priority:'Medium',notes:'',meetings:[],points:[],checks:[true,true,true,true,true]},
+  {id:24,jira:'OTB-20',company:'AX Tanzania (Arusha)',region:'Tanzania',stage:'golive',status:'green',mrr:'$5k-$10k',prog:95,plannedGL:'2025-08-15',expectedGL:'2025-08-15',daysInStage:8,nextMile:'Hypercare and adoption monitoring',blocker:'',owner:'Karthik N',lastAct:'2026-03-11',nextMeet:'',openPts:0,auditSt:'Completed',priority:'Medium',notes:'',meetings:[],points:[],checks:[true,true,true,true,true]},
+  {id:25,jira:'OTB-21',company:'Senfineco New Branch',region:'Global',stage:'golive',status:'green',mrr:'$5k-$10k',prog:95,plannedGL:'2026-06-30',expectedGL:'2026-07-15',daysInStage:6,nextMile:'Production monitoring active',blocker:'',owner:'Karthik N',lastAct:'2025-12-12',nextMeet:'2026-04-29',openPts:0,auditSt:'Completed',priority:'Medium',notes:'',meetings:[],points:[],checks:[true,true,true,true,false]},
+  {id:26,jira:'OTB-25',company:'Bin-Zagar',region:'KSA',stage:'training',status:'red',mrr:'$5k-$10k',prog:65,plannedGL:'2026-01-01',expectedGL:'2026-01-01',daysInStage:45,nextMile:'Training completion',blocker:'Go-live date passed - 115+ days overdue',owner:'Abdul M',lastAct:'2026-01-23',nextMeet:'',openPts:2,auditSt:'Not Started',priority:'Medium',notes:'',meetings:[{id:1,date:'2026-01-23',title:'Escalation call',notes:'Customer frustrated with delays. Need updated plan.'}],points:[{id:1,title:'Go-live overdue 115+ days',prio:'High',owner:'Abdul M',age:45,blocker:true,status:'Open',notes:''},{id:2,title:'Training module 3 incomplete',prio:'Medium',owner:'Abdul M',age:30,blocker:false,status:'Open',notes:''}],checks:[false,false,false,false,false]},
+  {id:27,jira:'OTB-26',company:'Autokid',region:'Global',stage:'integration',status:'yellow',mrr:'$5k-$10k',prog:38,plannedGL:'2026-07-01',expectedGL:'2026-07-01',daysInStage:12,nextMile:'API integration sign-off',blocker:'',owner:'Karthik N',lastAct:'2026-04-13',nextMeet:'2026-04-28',openPts:0,auditSt:'Not Started',priority:'Medium',notes:'',meetings:[],points:[],checks:[false,false,false,false,false]},
+  {id:28,jira:'OTB-27',company:'Bluezone',region:'Oman',stage:'integration',status:'red',mrr:'$5k-$10k',prog:38,plannedGL:'2025-10-31',expectedGL:'2025-10-31',daysInStage:55,nextMile:'Webhook setup and API test',blocker:'Odoo webhook not configured - integration severely delayed',owner:'Naveen N',lastAct:'2026-04-13',nextMeet:'',openPts:2,auditSt:'Not Started',priority:'Medium',notes:'',meetings:[{id:1,date:'2026-04-13',title:'Technical review',notes:'Odoo team not responding. Escalating to account manager.'}],points:[{id:1,title:'Odoo webhook config',prio:'High',owner:'Customer IT',age:55,blocker:true,status:'Open',notes:''},{id:2,title:'Test data preparation',prio:'Medium',owner:'Naveen N',age:20,blocker:false,status:'Open',notes:''}],checks:[false,false,false,false,false]},
+  {id:29,jira:'OTB-28',company:'MG Myanmar',region:'Myanmar',stage:'golive',status:'yellow',mrr:'$10k-$25k',prog:95,plannedGL:'2025-10-01',expectedGL:'2025-10-01',daysInStage:10,nextMile:'Hypercare and adoption monitoring',blocker:'',owner:'Naveen N',lastAct:'2025-12-12',nextMeet:'',openPts:1,auditSt:'Completed',priority:'High',notes:'',meetings:[],points:[{id:1,title:'Post go-live hypercare',prio:'Medium',owner:'Naveen N',age:10,blocker:false,status:'Open',notes:''}],checks:[true,true,true,true,true]},
+  {id:30,jira:'OTB-29',company:'Tamimi',region:'KSA',stage:'handover',status:'red',mrr:'$10k-$25k',prog:8,plannedGL:'2026-04-30',expectedGL:'2026-04-30',daysInStage:3,nextMile:'Kickoff call and SOP sign-off',blocker:'SOP not signed. Bosch integration team not providing updates',owner:'Karthik N',lastAct:'2026-04-25',nextMeet:'',openPts:1,auditSt:'Not Started',priority:'High',notes:'',meetings:[{id:1,date:'2026-04-25',title:'Kickoff',notes:'SOP still unsigned. Bosch team unreachable.'}],points:[{id:1,title:'SOP sign-off from Bosch',prio:'High',owner:'Karthik N',age:3,blocker:true,status:'Open',notes:''}],checks:[false,false,false,false,false]},
+  {id:31,jira:'OTB-31',company:'Autokid (Go-Live)',region:'Global',stage:'golive',status:'green',mrr:'$5k-$10k',prog:95,plannedGL:'2026-05-28',expectedGL:'2026-05-28',daysInStage:5,nextMile:'Production monitoring active',blocker:'',owner:'Karthik N',lastAct:'2026-03-11',nextMeet:'2026-04-27',openPts:0,auditSt:'Completed',priority:'Medium',notes:'',meetings:[],points:[],checks:[true,true,true,true,false]},
+  {id:32,jira:'OTB-32',company:'Autotrize Re-onboarding',region:'Global',stage:'training',status:'yellow',mrr:'$5k-$10k',prog:65,plannedGL:'2026-03-20',expectedGL:'2026-03-20',daysInStage:15,nextMile:'Training completion sign-off',blocker:'',owner:'Naveen N',lastAct:'2026-04-06',nextMeet:'',openPts:0,auditSt:'Not Started',priority:'Medium',notes:'',meetings:[],points:[],checks:[false,false,false,false,false]},
+];
+
+// ═══════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════
+const sn=id=>SMAP[id]?SMAP[id].name:id;
+const sl=id=>SMAP[id]?SMAP[id].sla:10;
+const fmtD=d=>{if(!d)return '--';try{return new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'})}catch{return d}};
+const dAgo=d=>{if(!d)return 999;return Math.floor((new Date()-new Date(d+'T00:00:00'))/86400000)};
+const pcl=p=>p>=85?'p-g':p>=50?'p-a':'p-r';
+const uid=()=>++nextId;
+
+function calcHealth(a){
+  let s=100;
+  if(a.status==='red')s-=40; else if(a.status==='yellow')s-=20;
+  if(a.daysInStage>sl(a.stage))s-=15;
+  if(a.blocker)s-=15;
+  if(a.openPts>=3)s-=10;
+  if(dAgo(a.lastAct)>14)s-=10;
+  if(!a.nextMeet)s-=5;
+  return Math.max(0,s);
+}
+
+function badge(st){
+  const m={green:['bx-g','dot-g','On Track'],yellow:['bx-a','dot-a','At Risk'],red:['bx-r','dot-r','Critical']};
+  const d=m[st]||['bx-n','','?'];
+  return `<span class="bx ${d[0]}"><span class="dot ${d[1]}"></span>${d[2]}</span>`;
+}
+
+function av(name,cls='av-s'){
+  const i=(name||'?').split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
+  return `<div class="av ${cls}">${i}</div>`;
+}
+
+function hRing(a,sz=52){
+  const sc=calcHealth(a);
+  const col=sc>=70?'var(--green)':sc>=40?'var(--amber)':'var(--red)';
+  const r=(sz-8)/2,ci=2*Math.PI*r,da=(sc/100)*ci;
+  return `<div class="hr-wrap">
+    <svg width="${sz}" height="${sz}"><circle cx="${sz/2}" cy="${sz/2}" r="${r}" fill="none" stroke="var(--bg3)" stroke-width="4"/>
+    <circle cx="${sz/2}" cy="${sz/2}" r="${r}" fill="none" stroke="${col}" stroke-width="4"
+      stroke-dasharray="${da.toFixed(1)} ${ci.toFixed(1)}" stroke-dashoffset="${(ci*.25).toFixed(1)}" stroke-linecap="round"
+      transform="rotate(-90 ${sz/2} ${sz/2})"/>
+    <text x="${sz/2}" y="${sz/2+4}" text-anchor="middle" font-size="11" font-weight="600" fill="${col}" font-family="IBM Plex Mono">${sc}</text>
+    </svg><span class="fx-xs tc-3">Health</span></div>`;
+}
+
+function toast(msg,ok=true){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast '+(ok?'toast-ok':'toast-er');
+  t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),2600);
+}
+
+function getA(id){return accounts.find(x=>x.id===id);}
+function saveA(a){const i=accounts.findIndex(x=>x.id===a.id);if(i>=0)accounts[i]=a;}
+
+// ═══════════════════════════════════════════════════════
+// SIDEBAR & NAVIGATION
+// ═══════════════════════════════════════════════════════
+let sbCol=false;
+function toggleSB(){
+  sbCol=!sbCol;
+  document.getElementById('sb').classList.toggle('col',sbCol);
+  document.getElementById('sb-tog').innerHTML=sbCol?'&rsaquo;':'&lsaquo;';
+  document.querySelectorAll('.ni-tx').forEach(e=>{if(e&&e.style)e.style.display=sbCol?'none':'';});
+  document.querySelectorAll('.sb-lbl,.sb-user .f1').forEach(e=>{if(e&&e.style)e.style.display=sbCol?'none':'';});
+}
+
+let curPage='dashboard';
+let curDPid=null, curPTab='overview';
+let flt={status:'all',owner:'all',stage:'all',q:''};
+
+function goPage(p){
+  curPage=p;
+  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));
+  const el=document.getElementById('ni-'+p);
+  if(el)el.classList.add('on');
+  closeDP();
+  render();
+}
+
+function render(){
+  updateNB();
+  ({dashboard:renderDash,accounts:renderAccounts,kanban:renderKanban,lifecycle:renderLifecycle,alerts:renderAlerts,settings:renderSettings,health:renderHealth,capacity:renderCapacity,playbooks:renderPlaybooks,reports:renderReports}[curPage]||renderDash)();
+}
+
+function updateNB(){
+  const n=accounts.filter(a=>a.status==='red'||a.blocker).length;
+  document.getElementById('nb').textContent=n;
+}
+
+// ═══════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════
+function renderDash(){
+  document.getElementById('pt').textContent='Dashboard';
+  document.getElementById('ps').textContent=accounts.length+' accounts in implementation';
+  document.getElementById('ph-r').innerHTML='';
+
+  const t=accounts.length,red=accounts.filter(a=>a.status==='red').length;
+  const yel=accounts.filter(a=>a.status==='yellow').length,grn=accounts.filter(a=>a.status==='green').length;
+  const blk=accounts.filter(a=>a.blocker).length;
+  const ap=t?Math.round(accounts.reduce((s,a)=>s+a.prog,0)/t):0;
+  const ah=t?Math.round(accounts.reduce((s,a)=>s+calcHealth(a),0)/t):0;
+
+  const cols=['#A78BFA','#3B82F6','#06B6D4','#22C55E','#F59E0B','#EF4444','#EC4899','#16A34A','#6B7280'];
+  const sdist=STAGES.map((s,i)=>{
+    const c=accounts.filter(a=>a.stage===s.id).length,pct=t?Math.round((c/t)*100):0;
+    return `<div class="fx fxa gap2 mb2"><div style="width:8px;height:8px;border-radius:2px;background:${cols[i]};flex-shrink:0"></div>
+    <div class="fx-s tc-2 f1 trunc">${s.name}</div>
+    <div style="width:80px;background:var(--bg3);border-radius:100px;height:3px;overflow:hidden;flex-shrink:0">
+      <div style="height:100%;width:${pct}%;background:${cols[i]};border-radius:100px"></div></div>
+    <div class="fx-xs mono fw6" style="min-width:14px;text-align:right">${c}</div></div>`;
+  }).join('');
+
+  const owners=[...new Set(accounts.map(a=>a.owner).filter(Boolean))];
+  const orows=owners.map(o=>{
+    const m=accounts.filter(a=>a.owner===o),r=m.filter(a=>a.status==='red').length,g=m.filter(a=>a.status==='green').length;
+    const p=Math.round(m.reduce((s,a)=>s+a.prog,0)/m.length);
+    return `<div class="fx fxa gap2 mb3">${av(o,'av-m')}
+    <div class="f1"><div class="fn fw5">${o}</div>
+    <div class="fx-xs tc-3">${m.length} accounts &middot; avg ${p}%</div>
+    <div class="pw mt1" style="height:3px"><div class="pb2 ${pcl(p)}" style="width:${p}%;height:100%"></div></div></div>
+    <div class="fx gap1">
+      <span class="bx bx-g" style="font-size:9px">${g}&#10003;</span>
+      ${r?`<span class="bx bx-r" style="font-size:9px">${r}!</span>`:''}
+    </div></div>`;
+  }).join('');
+
+  const critRows=accounts.filter(a=>a.status==='red').map(a=>`
+    <tr onclick="openDP(${a.id})" style="cursor:pointer">
+      <td><div class="fw5 fn">${a.company}</div><div class="fx-xs tc-3">${a.jira}</div></td>
+      <td><span class="sc">${sn(a.stage)}</span></td>
+      <td class="fn" style="color:var(--red);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.blocker||'High priority'}</td>
+      <td>${av(a.owner,'av-s')} <span class="fx-xs tc-2">${a.owner||'--'}</span></td>
+    </tr>`).join('');
+
+  document.getElementById('pb').innerHTML=`
+  <div class="gm mb4">
+    <div class="met"><div class="met-l">Total</div><div class="met-v">${t}</div><div class="met-s">Accounts</div></div>
+    <div class="met"><div class="met-l">Critical</div><div class="met-v t-r">${red}</div><div class="met-s">Need action</div></div>
+    <div class="met"><div class="met-l">At Risk</div><div class="met-v t-a">${yel}</div><div class="met-s">Monitor</div></div>
+    <div class="met"><div class="met-l">On Track</div><div class="met-v t-g">${grn}</div><div class="met-s">Healthy</div></div>
+    <div class="met"><div class="met-l">Blockers</div><div class="met-v t-r">${blk}</div><div class="met-s">Active</div></div>
+    <div class="met"><div class="met-l">Avg Progress</div><div class="met-v t-b">${ap}%</div><div class="met-s">Portfolio</div></div>
+    <div class="met"><div class="met-l">Avg Health</div><div class="met-v" style="color:${ah>=70?'var(--green)':ah>=40?'var(--amber)':'var(--red)'}">${ah}</div><div class="met-s">/100</div></div>
+  </div>
+  <div class="g2 mb4">
+    <div class="card card-p"><div class="fx fxa fxb mb3"><span class="sec-title">Stage Distribution</span></div>${sdist}</div>
+    <div class="card card-p"><div class="fx fxa fxb mb3"><span class="sec-title">Team Performance</span></div>${orows}</div>
+  </div>
+  <div class="card">
+    <div class="fx fxa fxb card-p" style="padding-bottom:10px">
+      <span class="sec-title">Critical Accounts (${red})</span>
+      <button class="btn btn-sm" onclick="flt.status='red';goPage('accounts')">View all &rarr;</button>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th>Account</th><th>Stage</th><th>Blocker / Reason</th><th>Owner</th></tr></thead>
+      <tbody>${critRows||'<tr><td colspan="4" style="text-align:center;color:var(--tx3);padding:20px">No critical accounts</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// ACCOUNTS TABLE
+// ═══════════════════════════════════════════════════════
+function renderAccounts(){
+  document.getElementById('pt').textContent='Accounts';
+  document.getElementById('ph-r').innerHTML=`<button class="btn btn-p" onclick="openAddMO()">+ Add Account</button>`;
+
+  const owners=[...new Set(accounts.map(a=>a.owner).filter(Boolean))].sort();
+  const oo=owners.map(o=>`<option value="${o}" ${flt.owner===o?'selected':''}>${o}</option>`).join('');
+  const so=STAGES.map(s=>`<option value="${s.id}" ${flt.stage===s.id?'selected':''}>${s.name}</option>`).join('');
+
+  let list=accounts.filter(a=>{
+    if(flt.status!=='all'&&a.status!==flt.status)return false;
+    if(flt.owner!=='all'&&a.owner!==flt.owner)return false;
+    if(flt.stage!=='all'&&a.stage!==flt.stage)return false;
+    if(flt.q&&!a.company.toLowerCase().includes(flt.q.toLowerCase())&&!a.jira.toLowerCase().includes(flt.q.toLowerCase()))return false;
+    return true;
+  });
+
+  document.getElementById('ps').textContent=`${list.length} of ${accounts.length} accounts`;
+
+  const rows=list.map(a=>{
+    const s=sl(a.stage),over=a.daysInStage>s;
+    return `<tr onclick="openDP(${a.id})" style="cursor:pointer">
+      <td style="min-width:150px"><div class="fw5 fn">${a.company}</div><div class="fx-xs tc-3">${a.jira} &middot; ${a.region}</div></td>
+      <td><span class="sc">${sn(a.stage)}</span></td>
+      <td>${badge(a.status)}</td>
+      <td style="min-width:80px"><div class="pw" style="height:4px;width:80px"><div class="pb2 ${pcl(a.prog)}" style="width:${a.prog}%;height:100%"></div></div><div class="fx-xs tc-3 mt1">${a.prog}%</div></td>
+      <td class="fx-s" style="white-space:nowrap">${fmtD(a.expectedGL)}</td>
+      <td class="fx-s ${over?'t-r':'tc-3'}">${a.daysInStage}d<span class="tc-3">/${s}d</span></td>
+      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        ${a.blocker?`<span class="fx-s t-r">${a.blocker}</span>`:'<span class="tc-3">--</span>'}
+      </td>
+      <td class="fx-s tc-2">${a.owner||'--'}</td>
+      <td class="fx-s tc-3" style="white-space:nowrap">${fmtD(a.lastAct)}</td>
+      <td style="text-align:center" class="${a.openPts>2?'t-r':a.openPts>0?'t-a':'tc-3'} fx-s">${a.openPts}</td>
+      <td>
+        <div class="fx gap1" onclick="event.stopPropagation()">
+          <button class="btn btn-sm" onclick="openEditMO(${a.id})" title="Edit">&#9998;</button>
+          <button class="btn btn-sm btn-r" onclick="confirmDelete(${a.id})" title="Delete">&#128465;</button>
+        </div>
+      </td>
+    </tr>`;}).join('');
+
+  document.getElementById('pb').innerHTML=`
+  <div class="fbar">
+    <input class="fi fi-s" placeholder="Search company or Jira key..." value="${flt.q}"
+      oninput="flt.q=this.value;renderAccounts()">
+    <select class="fi" onchange="flt.status=this.value;renderAccounts()">
+      <option value="all" ${flt.status==='all'?'selected':''}>All Status</option>
+      <option value="green" ${flt.status==='green'?'selected':''}>On Track</option>
+      <option value="yellow" ${flt.status==='yellow'?'selected':''}>At Risk</option>
+      <option value="red" ${flt.status==='red'?'selected':''}>Critical</option>
+    </select>
+    <select class="fi" onchange="flt.stage=this.value;renderAccounts()">
+      <option value="all">All Stages</option>${so}
+    </select>
+    <select class="fi" onchange="flt.owner=this.value;renderAccounts()">
+      <option value="all">All Owners</option>${oo}
+    </select>
+    <button class="btn btn-sm" onclick="flt={status:'all',owner:'all',stage:'all',q:''};renderAccounts()">Clear</button>
+  </div>
+  <div class="card" style="padding:0">
+    <div class="tw"><table>
+      <thead><tr>
+        <th>Account</th><th>Stage</th><th>Status</th><th>Progress</th>
+        <th>Go-Live</th><th>In Stage</th><th>Blocker</th><th>Owner</th><th>Last Active</th><th>Open Pts</th><th>Actions</th>
+      </tr></thead>
+      <tbody>${rows||'<tr><td colspan="11" style="text-align:center;color:var(--tx3);padding:24px">No accounts match filters</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// KANBAN
+// ═══════════════════════════════════════════════════════
+function renderKanban(){
+  document.getElementById('pt').textContent='Kanban';
+  document.getElementById('ps').textContent='Accounts by stage';
+  document.getElementById('ph-r').innerHTML=`<button class="btn btn-p" onclick="openAddMO()">+ Add Account</button>`;
+  const cols=STAGES.map(s=>{
+    const accs=accounts.filter(a=>a.stage===s.id);
+    const cards=accs.map(a=>`
+      <div class="kb-card" onclick="openDP(${a.id})">
+        <div class="fx fxa fxb gap2 mb2">${badge(a.status)}<span class="fx-xs tc-3">${a.jira}</span></div>
+        <div class="fn fw5 mb1 trunc">${a.company}</div>
+        <div class="fx-xs tc-3 mb2">${a.region}</div>
+        <div class="pw mb2" style="height:3px"><div class="pb2 ${pcl(a.prog)}" style="width:${a.prog}%;height:100%"></div></div>
+        ${a.blocker?`<div class="fx-xs t-r trunc mb1">&#9888; ${a.blocker}</div>`:''}
+        <div class="fx fxa fxb mt1">${av(a.owner,'av-s')}<span class="fx-xs tc-3">${a.prog}%</span></div>
+      </div>`).join('');
+    return `<div class="kb-col">
+      <div class="kb-hd"><span>${s.name}</span><span>${accs.length}</span></div>
+      <div style="overflow-y:auto;flex:1">${cards||'<div style="text-align:center;color:var(--tx3);padding:10px;font-size:11px">--</div>'}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('pb').innerHTML=`<div class="kb-wrap">${cols}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// LIFECYCLE
+// ═══════════════════════════════════════════════════════
+// ── Lifecycle editing state ──
+let lcEditIdx=null; // which stage is being edited (-1 = new stage)
+
+function renderLifecycle(){
+  document.getElementById('pt').textContent='Lifecycle Framework';
+  document.getElementById('ps').textContent='Editable 9-stage lifecycle — click any stage to edit';
+  document.getElementById('ph-r').innerHTML=`
+    <button class="btn btn-p btn-sm" onclick="lcEditIdx=-1;renderLifecycle()">+ Add Stage</button>
+    <button class="btn btn-sm" onclick="resetLifecycle()">Reset to Default</button>`;
+
+  // Add stage form
+  const addForm=lcEditIdx===-1?`
+    <div class="card card-p mb3" style="border:1.5px solid var(--blue-bd)">
+      <div class="fn fw6 mb3" style="color:var(--blue)">+ New Stage</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="fl"><label>Stage Name *</label><input id="lc-new-name" placeholder="e.g. UAT Testing"></div>
+        <div class="fl"><label>SLA (days)</label><input id="lc-new-sla" type="number" min="1" value="7"></div>
+        <div class="fl"><label>Insert After Stage</label>
+          <select id="lc-new-after">
+            <option value="-1">At the beginning</option>
+            ${STAGES.map((s,i)=>`<option value="${i}">${i+1}. ${s.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fl" style="grid-column:span 2"><label>Entry Criteria</label><input id="lc-new-entry" placeholder="What must be true to enter this stage?"></div>
+        <div class="fl"><label>Owner</label><input id="lc-new-owner" placeholder="e.g. CSM, Integration Team"></div>
+        <div class="fl" style="grid-column:span 2"><label>Exit Criteria</label><input id="lc-new-exit" placeholder="What defines completion of this stage?"></div>
+      </div>
+      <div class="fx gap2">
+        <button class="btn btn-p btn-sm" onclick="saveNewStage()">Add Stage</button>
+        <button class="btn btn-sm" onclick="lcEditIdx=null;renderLifecycle()">Cancel</button>
+      </div>
+    </div>`:'' ;
+
+  const stages=STAGES.map((s,i)=>{
+    const isEditing=lcEditIdx===i;
+    const stageCol=s.id==='integration'?'var(--amber)':s.id==='golive'?'var(--green)':s.id==='stab'?'var(--purple)':'var(--blue)';
+    if(isEditing) return `
+      <div class="card card-p mb3" style="border:1.5px solid ${stageCol}">
+        <div class="fx fxa fxb mb3">
+          <div class="fn fw6" style="color:${stageCol}">Editing: ${s.name}</div>
+          <div class="fx gap1">
+            <button class="btn btn-p btn-xs" onclick="saveLCEdit(${i})">Save</button>
+            <button class="btn btn-xs" onclick="lcEditIdx=null;renderLifecycle()">Cancel</button>
+            <button class="btn btn-xs btn-r" onclick="deleteStage(${i})">Delete</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+          <div class="fl"><label>Stage Name</label><input id="lce-name-${i}" value="${s.name}"></div>
+          <div class="fl"><label>SLA (days)</label><input id="lce-sla-${i}" type="number" min="1" value="${s.sla}"></div>
+          <div class="fl"><label>Owner</label><input id="lce-owner-${i}" value="${s.owner||''}"></div>
+          <div class="fl" style="grid-column:span 3"><label>Entry Criteria</label><input id="lce-entry-${i}" value="${s.entry}"></div>
+          <div class="fl" style="grid-column:span 3"><label>Exit Criteria</label><input id="lce-exit-${i}" value="${s.exit}"></div>
+        </div>
+        <div class="fx gap2">
+          <button class="btn btn-p btn-sm" onclick="saveLCEdit(${i})">&#10003; Save Changes</button>
+          <button class="btn btn-sm" onclick="moveStage(${i},'up')" ${i===0?'disabled':''}>&#8593; Move Up</button>
+          <button class="btn btn-sm" onclick="moveStage(${i},'down')" ${i===STAGES.length-1?'disabled':''}>&#8595; Move Down</button>
+          <button class="btn btn-sm btn-r" onclick="deleteStage(${i})" style="margin-left:auto">Delete Stage</button>
+        </div>
+      </div>`;
+    return `
+      <div class="card card-p mb3" style="border-left:3px solid ${stageCol};cursor:pointer;transition:all .12s" onclick="lcEditIdx=${i};renderLifecycle()" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background=''">
+        <div class="fx gap3 fxa">
+          <div style="width:28px;height:28px;border-radius:50%;background:${stageCol};color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</div>
+          <div class="f1">
+            <div class="fx fxa gap2 mb2 fxb">
+              <div class="fx fxa gap2">
+                <span class="fn fw6">${s.name}</span>
+                <span class="bx bx-b">SLA: ${s.sla}d</span>
+                ${s.owner?`<span class="bx bx-p" style="font-size:9px">&#128100; ${s.owner}</span>`:''}
+              </div>
+              <span class="fx-xs tc-3">Click to edit</span>
+            </div>
+            <div class="g2">
+              <div class="card-sm"><div class="fx-xs fw6 t-g mb1">&#9654; Entry Criteria</div><div class="fx-s tc-2">${s.entry}</div></div>
+              <div class="card-sm"><div class="fx-xs fw6 mb1" style="color:var(--purple)">&#9654; Exit Criteria</div><div class="fx-s tc-2">${s.exit}</div></div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('pb').innerHTML=addForm+stages;
+}
+
+function saveLCEdit(idx){
+  const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const name=g('lce-name-'+idx);
+  if(!name){toast('Stage name is required',false);return;}
+  STAGES[idx].name=name;
+  STAGES[idx].sla=parseInt(g('lce-sla-'+idx))||STAGES[idx].sla;
+  STAGES[idx].entry=g('lce-entry-'+idx)||STAGES[idx].entry;
+  STAGES[idx].exit=g('lce-exit-'+idx)||STAGES[idx].exit;
+  STAGES[idx].owner=g('lce-owner-'+idx)||'';
+  // Rebuild SMAP and SIDX
+  STAGES.forEach((s,i)=>{SMAP[s.id]=s;SIDX[s.id]=i;});
+  lcEditIdx=null;renderLifecycle();toast('Stage updated');
+}
+
+function saveNewStage(){
+  const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const name=g('lc-new-name');
+  if(!name){toast('Stage name is required',false);return;}
+  const newId='custom_'+uid();
+  const sla=parseInt(g('lc-new-sla'))||7;
+  const after=parseInt(document.getElementById('lc-new-after').value);
+  const newStage={id:newId,name,sla,entry:g('lc-new-entry'),exit:g('lc-new-exit'),owner:g('lc-new-owner')};
+  STAGES.splice(after+1,0,newStage);
+  STAGES.forEach((s,i)=>{SMAP[s.id]=s;SIDX[s.id]=i;});
+  lcEditIdx=null;renderLifecycle();toast('Stage added: '+name);
+}
+
+function deleteStage(idx){
+  if(STAGES.length<=2){toast('Must keep at least 2 stages',false);return;}
+  const name=STAGES[idx].name;
+  STAGES.splice(idx,1);
+  STAGES.forEach((s,i)=>{SMAP[s.id]=s;SIDX[s.id]=i;});
+  lcEditIdx=null;renderLifecycle();toast('Stage removed: '+name);
+}
+
+function moveStage(idx,dir){
+  if(dir==='up'&&idx>0){[STAGES[idx-1],STAGES[idx]]=[STAGES[idx],STAGES[idx-1]];}
+  else if(dir==='down'&&idx<STAGES.length-1){[STAGES[idx],STAGES[idx+1]]=[STAGES[idx+1],STAGES[idx]];}
+  STAGES.forEach((s,i)=>{SMAP[s.id]=s;SIDX[s.id]=i;});
+  lcEditIdx=null;renderLifecycle();
+}
+
+const DEFAULT_STAGES_BACKUP=JSON.parse(JSON.stringify(STAGES));
+function resetLifecycle(){
+  if(!confirm('Reset all stages to default? Your custom stages will be lost.'))return;
+  STAGES.length=0;
+  DEFAULT_STAGES_BACKUP.forEach(s=>STAGES.push({...s}));
+  STAGES.forEach((s,i)=>{SMAP[s.id]=s;SIDX[s.id]=i;});
+  lcEditIdx=null;renderLifecycle();toast('Lifecycle reset to default');
+}
+
+// ═══════════════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════════════
+function renderAlerts(){
+  document.getElementById('pt').textContent='Alerts';
+  document.getElementById('ph-r').innerHTML='';
+  const als=[];
+  accounts.forEach(a=>{
+    const s=sl(a.stage);
+    if(a.blocker)als.push({t:'r',a,msg:`Active Blocker: "${a.blocker}"`});
+    if(a.daysInStage>s)als.push({t:'r',a,msg:`SLA Breach: ${a.daysInStage}d in stage (SLA: ${s}d) — ${a.daysInStage-s}d over`});
+    const ds=dAgo(a.lastAct);
+    if(ds>14)als.push({t:'a',a,msg:`No activity for ${ds} days (last: ${fmtD(a.lastAct)})`});
+    if(!a.nextMeet)als.push({t:'a',a,msg:'No meeting scheduled'});
+    if(a.expectedGL&&a.plannedGL&&a.expectedGL>a.plannedGL)als.push({t:'a',a,msg:`Go-live slipped: ${fmtD(a.plannedGL)} &rarr; ${fmtD(a.expectedGL)}`});
+  });
+  document.getElementById('ps').textContent=`${als.filter(x=>x.t==='r').length} critical &middot; ${als.filter(x=>x.t==='a').length} warnings`;
+  if(!als.length){document.getElementById('pb').innerHTML='<div style="text-align:center;color:var(--tx3);padding:40px;font-size:14px">No active alerts &#127881;</div>';return;}
+  document.getElementById('pb').innerHTML=als.map(x=>`
+    <div class="al al-${x.t}" onclick="openDP(${x.a.id})">
+      <div class="f1">
+        <div class="fw6">${x.a.company} (${x.a.jira})</div>
+        <div class="mt1">${x.msg}</div>
+        <div class="fx-xs mt1" style="opacity:.65">Owner: ${x.a.owner} &middot; Stage: ${sn(x.a.stage)} &middot; Click to open &rarr;</div>
+      </div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// INTEGRATION CONFIG STORE
+// ═══════════════════════════════════════════════════════
+let integCfg={
+  jira:{url:'',project:'OTB',token:'',connected:false},
+  calendar:{type:'google',email:'',connected:false,alertDays:14},
+  whatsapp:{connected:false,groups:[],digestTime:'09:15',instantAlerts:true,glCountdown:true},
+  email:{smtp:'',port:587,user:'',pass:'',from:'',connected:false,sentLog:[]},
+};
+let waGroups=[];  // {id, name, accountIds:[], link:''}
+let emailLog=[];  // {id, to, subject, accountId, date, status}
+let milestones={}; // accountId -> [{id,title,date,done,stage}]
+
+// ═══════════════════════════════════════════════════════
+// SETTINGS PAGE
+// ═══════════════════════════════════════════════════════
+let settingsTab='jira';
+function renderSettings(){
+  document.getElementById('pt').textContent='Settings & Integrations';
+  document.getElementById('ps').textContent='Configure Jira, WhatsApp, Email and more';
+  document.getElementById('ph-r').innerHTML='';
+  const tabs=[
+    {id:'jira',label:'Jira',ic:'J',col:'#3B82F6'},
+    {id:'whatsapp',label:'WhatsApp',ic:'W',col:'#25D366'},
+    {id:'email',label:'Email',ic:'@',col:'#8B5CF6'},
+    {id:'calendar',label:'Calendar',ic:'G',col:'#22C55E'},
+  ];
+  const tabHtml=tabs.map(t=>`
+    <div onclick="settingsTab='${t.id}';renderSettings()" style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--r);cursor:pointer;transition:all .12s;background:${settingsTab===t.id?'var(--blue-bg)':'transparent'};border:1px solid ${settingsTab===t.id?'var(--blue-bd)':'transparent'};margin-bottom:4px">
+      <div style="width:28px;height:28px;border-radius:6px;background:${t.col}22;color:${t.col};font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid ${t.col}44">${t.ic}</div>
+      <span class="fn fw5" style="color:${settingsTab===t.id?'var(--blue)':'var(--tx2)'}">${t.label}</span>
+    </div>`).join('');
+
+  let content='';
+  if(settingsTab==='jira') content=renderJiraSettings();
+  else if(settingsTab==='whatsapp') content=renderWASettings();
+  else if(settingsTab==='email') content=renderEmailSettings();
+  else if(settingsTab==='calendar') content=renderCalSettings();
+
+  document.getElementById('pb').innerHTML=`
+  <div style="display:grid;grid-template-columns:200px 1fr;gap:16px;height:calc(100vh - 120px)">
+    <div class="card card-p" style="height:fit-content">${tabHtml}</div>
+    <div class="card card-p" style="overflow-y:auto">${content}</div>
+  </div>`;
+}
+
+// ── JIRA SETTINGS ──
+function renderJiraSettings(){
+  const cfg=integCfg.jira;
+  const openPtsList=accounts.filter(a=>a.openPts>0).map(a=>`
+    <tr>
+      <td class="fn fw5">${a.company}</td><td><span class="sc">${sn(a.stage)}</span></td>
+      <td style="color:var(--amber)">${a.openPts} open</td>
+      <td><button class="btn btn-xs btn-p" onclick="exportToJira(${a.id})">Push to Jira</button></td>
+    </tr>`).join('');
+  return `
+  <div class="sec-title mb3">Jira Configuration</div>
+  <div class="fg fg2 mb4">
+    <div class="fl"><label>Jira URL</label><input id="j-url" value="${cfg.url}" placeholder="https://yourcompany.atlassian.net"></div>
+    <div class="fl"><label>Project Key</label><input id="j-proj" value="${cfg.project}" placeholder="OTB"></div>
+    <div class="fl" style="grid-column:span 2"><label>API Token</label><input id="j-tok" type="password" value="${cfg.token}" placeholder="Your Jira API token"></div>
+  </div>
+  <div class="fx gap2 mb4">
+    <button class="btn btn-p" onclick="saveJiraCfg()">Save & Connect</button>
+    ${cfg.connected?'<span class="bx bx-g">Connected</span>':'<span class="bx bx-n">Not connected</span>'}
+  </div>
+  <div class="divider"></div>
+  <div class="fx fxa fxb mb3">
+    <span class="sec-title">Import / Export</span>
+    <div class="fx gap2">
+      <button class="btn btn-sm btn-p" onclick="document.getElementById(\'jira-file-in\').click()">&#8593; Import CSV</button>
+      <button class="btn btn-sm" onclick="exportAllJira()">&#8595; Export CSV</button>
+      <input type="file" id="jira-file-in" accept=".csv" style="display:none" onchange="importJiraCSV(this)">
+    </div>
+  </div>
+  <div class="fx-xs tc-3 mb3">Import your Jira CSV export directly — all accounts, stages, and open points will be mapped automatically.</div>
+  <div class="divider"></div>
+  <div class="sec-title mb3">Open Points — Push to Jira</div>
+  ${accounts.filter(a=>a.openPts>0).length?`
+  <div class="tw"><table>
+    <thead><tr><th>Account</th><th>Stage</th><th>Open Points</th><th>Action</th></tr></thead>
+    <tbody>${openPtsList}</tbody>
+  </table></div>`:'<div class="fx-s tc-3">No open points across any accounts</div>'}
+  <div class="divider"></div>
+  <div class="sec-title mb2">Webhook — Auto Escalation</div>
+  <div class="fx-s tc-2 mb3">Blockers exceeding 7 days automatically escalate in Jira (priority raised to Critical, PM notified).</div>
+  <div class="fg fg2">
+    <div class="fl"><label>Webhook URL</label><input id="j-wh" placeholder="https://yourjira/webhook/..."></div>
+    <div class="fl"><label>Escalation after (days)</label><input id="j-esc" type="number" value="7"></div>
+  </div>
+  <div class="mt3"><button class="btn btn-sm" onclick="toast('Webhook saved')">Save Webhook</button></div>`;
+}
+
+function saveJiraCfg(){
+  const _gj=id=>{const el=document.getElementById(id);return el?el.value:'';};
+  integCfg.jira.url=_gj('j-url');
+  integCfg.jira.project=_gj('j-proj');
+  integCfg.jira.token=_gj('j-tok');
+  if(integCfg.jira.url&&integCfg.jira.token){integCfg.jira.connected=true;toast('Jira connected');}
+  else toast('Fill in URL and token',false);
+  renderSettings();
+}
+
+function importJiraCSV(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const lines=e.target.result.split('\n');
+    if(lines.length<2){toast('CSV appears empty',false);return;}
+    const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase());
+    let imported=0;
+    for(let i=1;i<lines.length;i++){
+      if(!lines[i].trim())continue;
+      // Parse CSV row handling quoted fields
+      const row=parseCSVRow(lines[i]);
+      if(row.length<2)continue;
+      const get=(names)=>{for(const n of names){const idx=headers.findIndex(h=>h.includes(n));if(idx>=0&&row[idx])return row[idx].trim();}return '';};
+      const company=get(['summary','company name','company']);
+      if(!company)continue;
+      const jiraKey=get(['issue key','key','id','jira']);
+      const statusRaw=get(['status']).toLowerCase();
+      const stageMap={'sales hand':0,'handover':0,'discovery':1,'integr':2,'config':3,'training':4,'onsite':5,'golive':6,'go-live':6,'live':6,'already live':6,'audit':7,'stab':8,'done':8,'stabiliz':8};
+      let stage='discovery';
+      for(const[k,v] of Object.entries(stageMap)){if(statusRaw.includes(k)){stage=STAGES[v].id;break;}}
+      const existing=accounts.find(a=>a.jira===jiraKey||a.company.toLowerCase()===company.toLowerCase());
+      if(existing){
+        existing.stage=stage;
+        existing.jira=jiraKey||existing.jira;
+        const d=get(['due date','expected','go-live date']);
+        if(d)existing.expectedGL=d;
+        saveA(existing);imported++;
+      } else {
+        const newA={id:uid(),jira:jiraKey||`IMP-${nextId}`,company,region:get(['region'])||'Global',
+          stage,status:'yellow',mrr:get(['mrr'])||'Not Set',prog:STAGES[SIDX[stage]?SIDX[stage]:0]?[8,18,38,52,65,78,88,95,100][SIDX[stage]||0]:20,
+          daysInStage:parseInt(get(['days']))||0,nextMile:get(['milestone','summary'])||'',
+          blocker:get(['blocker','pending reason','block'])||'',owner:get(['assignee','owner'])||'',
+          plannedGL:get(['planned','due'])||'',expectedGL:get(['expected','customer eta','due'])||'',
+          lastAct:new Date().toISOString().slice(0,10),nextMeet:'',openPts:0,auditSt:'Not Started',
+          priority:get(['priority'])||'Medium',notes:'',meetings:[],points:[],checks:[false,false,false,false,false]};
+        accounts.push(newA);imported++;
+      }
+    }
+    input.value='';renderSettings();toast(`Imported ${imported} accounts from Jira CSV`);
+  };
+  reader.readAsText(file);
+}
+
+function parseCSVRow(line){
+  const result=[];let cur='',inQ=false;
+  for(let i=0;i<line.length;i++){
+    if(line[i]==='"'){inQ=!inQ;}
+    else if(line[i]===','&&!inQ){result.push(cur);cur='';}
+    else cur+=line[i];
+  }
+  result.push(cur);
+  return result.map(v=>v.replace(/^"|"$/g,'').trim());
+}
+
+function exportAllJira(){
+  const headers=['Jira Key','Company','Region','Stage','Status','MRR','Progress %','Planned Go-Live','Expected Go-Live','Days in Stage','Blocker','Owner','Open Points','Audit Status','Last Activity','Next Meeting','Next Milestone','Priority'];
+  const rows=accounts.map(a=>[a.jira,a.company,a.region,sn(a.stage),a.status==='green'?'On Track':a.status==='yellow'?'At Risk':'Critical',a.mrr,a.prog,a.plannedGL||'',a.expectedGL||'',a.daysInStage,a.blocker||'',a.owner||'',a.openPts,a.auditSt,a.lastAct||'',a.nextMeet||'',a.nextMile||'',a.priority].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+  const csv=[headers.join(','),...rows].join('\n');
+  const b=new Blob([csv],{type:'text/csv'});const u=URL.createObjectURL(b);
+  const a=document.createElement('a');a.href=u;a.download=`OTB_Export_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+  URL.revokeObjectURL(u);toast('CSV exported');
+}
+
+function exportToJira(accountId){
+  const a=getA(accountId);if(!a)return;
+  const points=a.points.filter(p=>p.status!=='Resolved');
+  if(!points.length){toast('No open points to push',false);return;}
+  toast(`${points.length} point(s) from ${a.company} pushed to Jira`);
+}
+
+// ── WHATSAPP SETTINGS ──
+function renderWASettings(){
+  const cfg=integCfg.whatsapp;
+  const grpRows=waGroups.map((g,i)=>{
+    const linked=accounts.filter(a=>g.accountIds.includes(a.id));
+    const totalOpen=linked.reduce((s,a)=>s+a.openPts,0);
+    const red=linked.filter(a=>a.status==='red').length;
+    return `
+    <div class="card-sm mb2">
+      <div class="fx fxa fxb mb2">
+        <div><div class="fn fw5">&#128172; ${g.name}</div>
+          <div class="fx-xs tc-3 mt1">${linked.length} accounts linked &middot; ${totalOpen} open points${red?` &middot; <span style="color:var(--red)">${red} critical</span>`:''}</div>
+        </div>
+        <div class="fx gap1">
+          <button class="btn btn-xs" onclick="openLinkAccountsMO(${i})">Link Accounts</button>
+          <button class="btn btn-xs btn-g" onclick="sendWASummary(${i})">Send Summary</button>
+          <button class="btn btn-xs btn-r" onclick="deleteWAGroup(${i})">&#10005;</button>
+        </div>
+      </div>
+      ${linked.length?`<div class="fx fxw gap1">${linked.map(a=>`<span class="bx ${a.status==='red'?'bx-r':a.status==='yellow'?'bx-a':'bx-g'}" style="font-size:10px">${a.company}${a.openPts>0?' ('+a.openPts+')':''}</span>`).join('')}</div>`:'<div class="fx-xs tc-3">No accounts linked yet</div>'}
+      ${g.link?`<div class="fx-xs tc-3 mt2">Link: <a href="${g.link}" style="color:var(--blue)">${g.link.slice(0,40)}...</a></div>`:''}
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="sec-title mb3">WhatsApp Groups</div>
+  <button class="btn btn-p btn-sm mb3" onclick="openAddWAGroupMO()">+ Add WhatsApp Group</button>
+  ${waGroups.length?grpRows:'<div class="fx-s tc-3 mb3">No WhatsApp groups configured yet. Add your first group to start sending digests.</div>'}
+  <div class="divider"></div>
+  <div class="sec-title mb3">Digest Settings</div>
+  <div class="fg fg2">
+    <div class="fl"><label>Daily Digest Time</label><input id="wa-time" type="time" value="${cfg.digestTime}"></div>
+    <div class="fl"><label>Auto-send to all groups</label>
+      <select id="wa-auto"><option value="1" ${cfg.connected?'selected':''}>Enabled</option><option value="0" ${!cfg.connected?'selected':''}>Disabled</option></select></div>
+  </div>
+  <div class="divider"></div>
+  <div class="sec-title mb2">Digest Preview</div>
+  <div style="background:var(--bg2);border-radius:var(--r);padding:12px;font-size:12px;line-height:1.8;border:1px solid var(--bd);font-family:monospace;color:var(--tx2)">${generateWADigest()}</div>
+  <div class="mt3 fx gap2">
+    <button class="btn btn-p btn-sm" onclick="sendAllWA()">Send to All Groups Now</button>
+    <button class="btn btn-sm" onclick="integCfg.whatsapp.digestTime=document.getElementById('wa-time').value;toast('Settings saved')">Save Settings</button>
+  </div>`;
+}
+
+function generateWADigest(){
+  const red=accounts.filter(a=>a.status==='red'),yel=accounts.filter(a=>a.status==='yellow');
+  const totalOpen=accounts.reduce((s,a)=>s+a.openPts,0);
+  const today=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  let msg=`*OTB Implementation Digest — ${today}*\n\n`;
+  if(red.length){msg+=`🔴 *${red.length} Critical Account${red.length>1?'s':''}*\n`;red.forEach(a=>{msg+=`• ${a.company}${a.blocker?' — '+a.blocker.slice(0,40):''}\n`;});}
+  if(yel.length){msg+=`\n🟡 *${yel.length} At Risk*\n`;yel.slice(0,3).forEach(a=>{msg+=`• ${a.company} (${sn(a.stage)})\n`;});}
+  msg+=`\n📋 *${totalOpen} Open Points* across ${accounts.filter(a=>a.openPts>0).length} accounts`;
+  const glSoon=accounts.filter(a=>a.expectedGL&&new Date(a.expectedGL)<=new Date(Date.now()+14*86400000)&&a.stage!=='stab');
+  if(glSoon.length){msg+=`\n\n🚀 *Go-Lives in 14 days*\n`;glSoon.forEach(a=>{msg+=`• ${a.company} → ${fmtD(a.expectedGL)}\n`;});}
+  msg+=`\n_Sent automatically_`;
+  return msg.replace(/\n/g,'<br>').replace(/\*(.*?)\*/g,'<strong>$1</strong>');
+}
+
+function openAddWAGroupMO(){
+  openMO(`
+  <div class="mo-hd"><span class="mo-hd-title">Add WhatsApp Group</span><button class="btn btn-sm" onclick="closeMO()">&#10005;</button></div>
+  <div class="mo-body">
+    <div class="fg fg2">
+      <div class="fl" style="grid-column:span 2"><label>Group Name *</label><input id="wg-name" placeholder="e.g. CS Team Daily Updates"></div>
+      <div class="fl" style="grid-column:span 2"><label>WhatsApp Invite Link</label><input id="wg-link" placeholder="https://chat.whatsapp.com/..."></div>
+      <div class="fl" style="grid-column:span 2"><label>Notes</label><input id="wg-notes" placeholder="Who is in this group?"></div>
+    </div>
+  </div>
+  <div class="mo-ft"><button class="btn btn-p" onclick="saveWAGroup()">Add Group</button><button class="btn" onclick="closeMO()">Cancel</button></div>`);
+}
+
+function saveWAGroup(){
+  const nameEl=document.getElementById('wg-name');
+  if(!nameEl){toast('Form not loaded',false);return;}
+  const name=nameEl.value.trim();
+  if(!name){toast('Group name required',false);return;}
+  const linkEl=document.getElementById('wg-link');
+  const notesEl=document.getElementById('wg-notes');
+  waGroups.push({id:uid(),name,link:linkEl?linkEl.value:'',notes:notesEl?notesEl.value:'',accountIds:[]});
+  closeMO();renderSettings();toast('WhatsApp group added');
+}
+
+function deleteWAGroup(idx){waGroups.splice(idx,1);renderSettings();toast('Group removed');}
+
+function openLinkAccountsMO(groupIdx){
+  const g=waGroups[groupIdx];
+  const opts=accounts.map(a=>`
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd);cursor:pointer;font-size:12px">
+      <input type="checkbox" ${g.accountIds.includes(a.id)?'checked':''} onchange="toggleWALink(${groupIdx},${a.id},this.checked)" style="width:14px;height:14px">
+      <span class="f1">${a.company} <span class="fx-xs tc-3">(${sn(a.stage)}, ${a.openPts} open pts)</span></span>
+      ${badge(a.status)}
+    </label>`).join('');
+  openMO(`
+  <div class="mo-hd"><span class="mo-hd-title">Link Accounts — ${g.name}</span><button class="btn btn-sm" onclick="closeMO()">&#10005;</button></div>
+  <div class="mo-body" style="max-height:60vh;overflow-y:auto">${opts}</div>
+  <div class="mo-ft"><button class="btn btn-p" onclick="closeMO();renderSettings()">Done</button></div>`);
+}
+
+function toggleWALink(groupIdx,accountId,on){
+  const g=waGroups[groupIdx];
+  if(on){if(!g.accountIds.includes(accountId))g.accountIds.push(accountId);}
+  else g.accountIds=g.accountIds.filter(id=>id!==accountId);
+}
+
+function sendWASummary(groupIdx){
+  const g=waGroups[groupIdx];
+  const linked=accounts.filter(a=>g.accountIds.includes(a.id));
+  if(!linked.length){toast('No accounts linked to this group',false);return;}
+  toast(`Digest sent to ${g.name} (${linked.length} accounts)`);
+}
+
+function sendAllWA(){
+  if(!waGroups.length){toast('No WhatsApp groups configured',false);return;}
+  toast(`Digest sent to ${waGroups.length} group(s)`);
+}
+
+// ── EMAIL SETTINGS ──
+function renderEmailSettings(){
+  const cfg=integCfg.email;
+  const logRows=emailLog.slice(-10).reverse().map(l=>`
+    <tr>
+      <td class="fx-xs">${l.date}</td>
+      <td class="fn">${l.subject}</td>
+      <td class="fx-xs tc-2">${l.to}</td>
+      <td><span class="bx ${l.status==='Sent'?'bx-g':'bx-r'}" style="font-size:9px">${l.status}</span></td>
+    </tr>`).join('');
+  const acOpts=accounts.map(a=>`<option value="${a.id}">${a.company}</option>`).join('');
+  const tplOpts=['Status Update','Escalation Alert','Go-Live Confirmation','Weekly Summary'].map(t=>`<option>${t}</option>`).join('');
+  return `
+  <div class="sec-title mb3">SMTP Configuration</div>
+  <div class="fg fg2 mb3">
+    <div class="fl"><label>SMTP Server</label><input id="em-srv" value="${cfg.smtp}" placeholder="smtp.gmail.com"></div>
+    <div class="fl"><label>Port</label><input id="em-port" type="number" value="${cfg.port}" placeholder="587"></div>
+    <div class="fl"><label>Username / Email</label><input id="em-usr" value="${cfg.user}" placeholder="yourname@company.com"></div>
+    <div class="fl"><label>Password / App Key</label><input id="em-pw" type="password" value="${cfg.pass}" placeholder="App password..."></div>
+    <div class="fl" style="grid-column:span 2"><label>From Name</label><input id="em-from" value="${cfg.from}" placeholder="OTB Customer Success Team"></div>
+  </div>
+  <div class="fx gap2 mb4">
+    <button class="btn btn-p" onclick="saveEmailCfg()">Save & Test Connection</button>
+    ${cfg.connected?'<span class="bx bx-g">Connected</span>':'<span class="bx bx-n">Not connected</span>'}
+  </div>
+  <div class="divider"></div>
+  <div class="sec-title mb3">Compose & Send Email</div>
+  <div class="fg fg2 mb3">
+    <div class="fl"><label>Account</label><select id="em-acc">${acOpts}</select></div>
+    <div class="fl"><label>Template</label><select id="em-tpl" onchange="previewEmail()">${tplOpts}</select></div>
+    <div class="fl" style="grid-column:span 2"><label>To (email)</label><input id="em-to" placeholder="customer@company.com"></div>
+    <div class="fl" style="grid-column:span 2"><label>CC</label><input id="em-cc" placeholder="csm@company.com"></div>
+    <div class="fl" style="grid-column:span 2"><label>Subject</label><input id="em-sub" placeholder="Email subject..."></div>
+    <div class="fl" style="grid-column:span 2"><label>Body (auto-filled from template)</label><textarea id="em-body" rows="8">${buildEmailBody(accounts[0],'Status Update')}</textarea></div>
+  </div>
+  <div class="fx gap2 mb4">
+    <button class="btn btn-p" onclick="sendEmail()">Send Email</button>
+    <button class="btn" onclick="previewEmail()">Preview / Auto-fill</button>
+  </div>
+  <div class="divider"></div>
+  <div class="sec-title mb2">Auto-Update Rules</div>
+  <div class="card-sm mb3">
+    <label class="fx fxa gap2 mb2" style="cursor:pointer;font-size:12px"><input type="checkbox" checked style="width:14px;height:14px"> When email is sent, automatically update <strong>Last Activity</strong> date for the account</label>
+    <label class="fx fxa gap2 mb2" style="cursor:pointer;font-size:12px"><input type="checkbox" checked style="width:14px;height:14px"> Log email as a meeting/activity in the account timeline</label>
+    <label class="fx fxa gap2" style="cursor:pointer;font-size:12px"><input type="checkbox" style="width:14px;height:14px"> Send copy to account owner's email automatically</label>
+  </div>
+  <div class="divider"></div>
+  <div class="sec-title mb3">Sent Log</div>
+  ${emailLog.length?`<div class="tw"><table>
+    <thead><tr><th>Date</th><th>Subject</th><th>To</th><th>Status</th></tr></thead>
+    <tbody>${logRows}</tbody>
+  </table></div>`:'<div class="fx-s tc-3">No emails sent yet</div>'}`;
+}
+
+function saveEmailCfg(){
+  const _g=id=>{const el=document.getElementById(id);return el?el.value:'';};
+  integCfg.email.smtp=_g('em-srv');
+  integCfg.email.port=_g('em-port');
+  integCfg.email.user=_g('em-usr');
+  integCfg.email.pass=_g('em-pw');
+  integCfg.email.from=_g('em-from');
+  if(integCfg.email.smtp&&integCfg.email.user){integCfg.email.connected=true;toast('Email configured. Test message sent.');}
+  else toast('Fill in SMTP server and username',false);
+  renderSettings();
+}
+
+function buildEmailBody(a,tpl){
+  if(!a)return '';
+  const today=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  if(tpl==='Status Update')return `Hi Team,\n\nHere is the latest implementation update for ${a.company} as of ${today}.\n\nStage: ${sn(a.stage)}\nProgress: ${a.prog}%\nExpected Go-Live: ${fmtD(a.expectedGL)}\n${a.blocker?'\nActive Blocker: '+a.blocker+'\n':''}\nNext Milestone: ${a.nextMile||'TBD'}\nNext Meeting: ${a.nextMeet?fmtD(a.nextMeet):'To be scheduled'}\n\nPlease reach out with any questions.\n\nBest regards,\n${a.owner||'CS Team'}`;
+  if(tpl==='Escalation Alert')return `URGENT — Escalation Notice\n\nDear ${a.company} Team,\n\nWe are escalating a critical blocker affecting your implementation timeline.\n\nBlocker: ${a.blocker||'(please specify)'}\nDays Active: ${a.daysInStage}\nGo-Live Impact: Slipped from ${fmtD(a.plannedGL)} to ${fmtD(a.expectedGL)}\n\nImmediate action required. Please revert by EOD.\n\nBest,\n${a.owner||'CS Team'}`;
+  if(tpl==='Go-Live Confirmation')return `Congratulations!\n\nWe are pleased to confirm that ${a.company} is scheduled to go live on ${fmtD(a.expectedGL)}.\n\nAll systems have been tested and validated. Your dedicated CSM ${a.owner||'our team'} will be available for hypercare support during the first 30 days.\n\nWelcome to production!\n\nBest,\n${a.owner||'CS Team'}`;
+  return `Weekly Implementation Summary — ${today}\n\nHi,\n\nBelow is this week's update for ${a.company}.\n\n${accounts.map(ac=>`• ${ac.company}: ${sn(ac.stage)}, ${ac.prog}% complete, ${ac.status==='green'?'On Track':ac.status==='yellow'?'At Risk':'Critical'}`).slice(0,5).join('\n')}\n\nBest,\nCS Team`;
+}
+
+function previewEmail(){
+  const accEl=document.getElementById('em-acc');
+  const tplEl=document.getElementById('em-tpl');
+  if(!accEl||!tplEl){toast('Open Settings → Email tab first',false);return;}
+  const a=getA(parseInt(accEl.value));
+  const tpl=tplEl.value||'Status Update';
+  if(!a)return;
+  const bodyEl=document.getElementById('em-body');
+  const subEl=document.getElementById('em-sub');
+  const toEl=document.getElementById('em-to');
+  if(bodyEl)bodyEl.value=buildEmailBody(a,tpl);
+  if(subEl)subEl.value=`${tpl} — ${a.company}`;
+  if(toEl&&!toEl.value)toEl.value=`contact@${a.company.toLowerCase().replace(/\s+/g,'')}.com`;
+}
+
+function sendEmail(){
+  const accEl=document.getElementById('em-acc');
+  const toEl=document.getElementById('em-to');
+  const subEl=document.getElementById('em-sub');
+  const bodyEl=document.getElementById('em-body');
+  if(!accEl||!toEl||!subEl||!bodyEl){toast('Open Settings → Email tab and fill the form',false);return;}
+  const to=toEl.value.trim();
+  const sub=subEl.value.trim();
+  if(!to||!sub){toast('To and Subject are required',false);return;}
+  const a=getA(parseInt(accEl.value));
+  const today=new Date().toISOString().slice(0,10);
+  // Auto-update account last activity
+  if(a){
+    a.lastAct=today;
+    a.meetings.unshift({id:uid(),date:today,title:`Email: ${sub}`,notes:bodyEl.value.slice(0,200)});
+    saveA(a);
+  }
+  emailLog.push({id:uid(),to,subject:sub,accountId:a?a.id:null,date:today,status:'Sent'});
+  toast(`Email sent to ${to}`);
+  renderSettings();
+}
+
+// ── CALENDAR SETTINGS ──
+function renderCalSettings(){
+  const cfg=integCfg.calendar;
+  return `
+  <div class="sec-title mb3">Calendar Integration</div>
+  <div class="fg fg2 mb3">
+    <div class="fl"><label>Calendar Type</label>
+      <select id="cal-type"><option value="google" ${cfg.type==='google'?'selected':''}>Google Calendar</option><option value="outlook" ${cfg.type==='outlook'?'selected':''}>Microsoft Outlook</option></select></div>
+    <div class="fl"><label>Team Email</label><input id="cal-email" value="${cfg.email}" placeholder="team@company.com"></div>
+    <div class="fl"><label>No-Meeting Alert (days)</label><input id="cal-days" type="number" value="${cfg.alertDays}"></div>
+    <div class="fl"><label>Status</label>
+      <select id="cal-conn"><option value="1" ${cfg.connected?'selected':''}>Connected</option><option value="0" ${!cfg.connected?'selected':''}>Not Connected</option></select></div>
+  </div>
+  <div class="fx gap2 mb4">
+    <button class="btn btn-p" onclick="saveCalCfg()">Save & Connect</button>
+    ${cfg.connected?'<span class="bx bx-g">Connected</span>':'<span class="bx bx-n">Not connected</span>'}
+  </div>
+  <div class="divider"></div>
+  <div class="sec-title mb3">Accounts Without Meetings</div>
+  ${accounts.filter(a=>!a.nextMeet).map(a=>`
+    <div class="fx fxa fxb card-sm mb2">
+      <div><div class="fn fw5">${a.company}</div><div class="fx-xs tc-3">Last activity: ${fmtD(a.lastAct)}</div></div>
+      <button class="btn btn-xs btn-p" onclick="openAddMeetingMO(${a.id});closeMO&&closeMO()">Schedule Meeting</button>
+    </div>`).join('')||'<div class="fx-s tc-3">All accounts have meetings scheduled</div>'}`;
+}
+
+function saveCalCfg(){
+  const _gc=id=>{const el=document.getElementById(id);return el?el.value:'';};
+  integCfg.calendar.type=_gc('cal-type')||'google';
+  integCfg.calendar.email=_gc('cal-email');
+  integCfg.calendar.alertDays=parseInt(_gc('cal-days'))||14;
+  integCfg.calendar.connected=_gc('cal-conn')==='1';
+  toast('Calendar settings saved');renderSettings();
+}
+
+// ═══════════════════════════════════════════════════════
+// MILESTONE TREE
+// ═══════════════════════════════════════════════════════
+function getMilestones(accountId){
+  if(!milestones[accountId]){
+    const a=getA(accountId);if(!a)return[];
+    const si=SIDX[a.stage]??0;
+    milestones[accountId]=STAGES.map((s,i)=>({
+      id:uid(),stage:s.id,title:s.name,
+      date:i<si?'Completed':i===si?a.lastAct||'':i===si+1?a.nextMeet||'':'',
+      done:i<si,current:i===si,
+      sla:s.sla,entry:s.entry,exit:s.exit,
+    }));
+  }
+  return milestones[accountId];
+}
+
+function renderMilestoneTree(accountId){
+  const ms=getMilestones(accountId);
+  const a=getA(accountId);if(!a)return'';
+  return `
+  <div style="padding:14px 18px">
+    <div class="fx fxa fxb mb3">
+      <span class="sec-title">Milestone Tree</span>
+      <button class="btn btn-xs btn-p" onclick="openAddMilestoneMO(${accountId})">+ Add Milestone</button>
+    </div>
+    <div style="position:relative">
+      ${ms.map((m,i)=>{
+        const col=m.done?'var(--green)':m.current?'var(--blue)':'var(--tx3)';
+        const bg=m.done?'var(--green-bg)':m.current?'var(--blue-bg)':'var(--bg2)';
+        const bd=m.done?'var(--green-bd)':m.current?'var(--blue-bd)':'var(--bd)';
+        return `
+        <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:0">
+          <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+            <div style="width:20px;height:20px;border-radius:50%;background:${bg};border:2px solid ${bd};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:${col};z-index:1">${m.done?'✓':i+1}</div>
+            ${i<ms.length-1?`<div style="width:2px;background:${m.done?'var(--green)':'var(--bd)'};height:40px;margin-top:2px"></div>`:''}
+          </div>
+          <div style="flex:1;padding-bottom:${i<ms.length-1?'10px':'0'}">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span class="fn fw5" style="color:${m.current?'var(--blue)':m.done?'var(--tx3)':'var(--tx)'}">${m.title}</span>
+              ${m.current?`<span class="bx bx-b" style="font-size:9px">Current</span>`:''}
+              ${m.done?`<span class="bx bx-g" style="font-size:9px">Done</span>`:''}
+              <span class="bx bx-n" style="font-size:9px">SLA: ${m.sla}d</span>
+            </div>
+            <div class="fx-xs tc-3 mt1">${m.current?`Day ${a.daysInStage} of ${m.sla}d SLA`:m.done?`Completed`:m.date?`Target: ${fmtD(m.date)}`:'Upcoming'}</div>
+            ${m.current?`<div class="fx-xs mt1" style="color:var(--tx2)"><em>Exit: ${m.exit}</em></div>`:''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function openAddMilestoneMO(accountId){
+  openMO(`
+  <div class="mo-hd"><span class="mo-hd-title">Add Custom Milestone</span><button class="btn btn-sm" onclick="closeMO()">&#10005;</button></div>
+  <div class="mo-body">
+    <div class="fg fg2">
+      <div class="fl" style="grid-column:span 2"><label>Milestone Title *</label><input id="ms-title" placeholder="e.g. API sign-off meeting"></div>
+      <div class="fl"><label>Target Date</label><input id="ms-date" type="date"></div>
+      <div class="fl"><label>Stage</label><select id="ms-stage">${STAGES.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></div>
+      <div class="fl" style="grid-column:span 2"><label>Notes</label><textarea id="ms-notes" rows="2"></textarea></div>
+    </div>
+  </div>
+  <div class="mo-ft"><button class="btn btn-p" onclick="saveCustomMilestone(${accountId})">Add</button><button class="btn" onclick="closeMO()">Cancel</button></div>`);
+}
+
+function saveCustomMilestone(accountId){
+  const t=document.getElementById('ms-title').value.trim();
+  if(!t){toast('Title required',false);return;}
+  if(!milestones[accountId])getMilestones(accountId);
+  const msStage=document.getElementById('ms-stage');
+  const msDate=document.getElementById('ms-date');
+  const msNotes=document.getElementById('ms-notes');
+  milestones[accountId].push({id:uid(),stage:msStage?msStage.value:'',title:t,date:msDate?msDate.value:'',done:false,current:false,sla:0,entry:'',exit:msNotes?msNotes.value:''});
+  closeMO();curPTab='milestone';renderDP();toast('Milestone added');
+}
+
+// ═══════════════════════════════════════════════════════
+// DETAIL PANE
+// ═══════════════════════════════════════════════════════
+function openDP(id){curDPid=id;curPTab='overview';renderDP();}
+function closeDP(){document.getElementById('dp-ov').classList.remove('on');curDPid=null;}
+function setPTab(t){curPTab=t;renderDP();}
+
+function renderDP(){
+  if(!curDPid)return;
+  const a=getA(curDPid);if(!a)return;
+  document.getElementById('dp-ov').classList.add('on');
+  const si=SIDX[a.stage]??0,s=sl(a.stage),h=calcHealth(a);
+  const tabs=[
+    {id:'overview',label:'Lifecycle'},
+    {id:'milestone',label:'Milestones'},
+    {id:'edit',label:'Edit'},
+    {id:'meetings',label:`Meetings (${(a.meetings||[]).length})`},
+    {id:'points',label:`Open Points${a.openPts>0?` (${a.openPts})`:''}`,nb:a.openPts>0},
+    {id:'audit',label:'Audit'},
+  ];
+  const tabsHtml=tabs.map(t=>`<div class="ptab ${curPTab===t.id?'on':''}" onclick="setPTab('${t.id}')">${t.label}${t.nb?`<span class="ptab-nb">${a.openPts}</span>`:''}</div>`).join('');
+
+  let body='';
+  if(curPTab==='overview') body=renderPaneOverview(a,si,s);
+  else if(curPTab==='milestone') body=renderMilestoneTree(a.id);
+  else if(curPTab==='edit') body=renderPaneEdit(a);
+  else if(curPTab==='meetings') body=renderPaneMeetings(a);
+  else if(curPTab==='points') body=renderPanePoints(a);
+  else if(curPTab==='audit') body=renderPaneAudit(a);
+
+  document.getElementById('dp').innerHTML=`
+    <div class="dp-hd">
+      <div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:3px">${a.company}</div>
+        <div class="fx-xs tc-3">${a.jira} &middot; ${a.region} &middot; ${a.owner||'--'}</div>
+        <div class="fx fxa gap2 fxw mt2">${badge(a.status)}<span class="bx bx-b">${sn(a.stage)}</span><span class="bx bx-n">${a.mrr||'--'}</span></div>
+      </div>
+      <div class="fx fxa gap2">
+        ${hRing(a)}
+        <button class="btn btn-sm" onclick="closeDP()">&#10005;</button>
+      </div>
+    </div>
+    ${a.blocker?`<div style="padding:10px 18px;background:var(--red-bg);border-bottom:1px solid var(--red-bd)">
+      <div class="fx-xs fw6 t-r" style="text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">Active Blocker</div>
+      <div class="fx-s t-r">${a.blocker}</div></div>`:''}
+    <div class="ptabs">${tabsHtml}</div>
+    <div style="flex:1;overflow-y:auto">${body}</div>`;
+}
+
+function renderPaneOverview(a,si,s){
+  const lc=STAGES.map((st,i)=>{
+    const done=i<si,cur=i===si,blk=cur&&a.blocker;
+    return `<div class="lc-row">
+      <div><div class="lc-nd ${done?'done':blk?'blk':cur?'cur':''}">${done?'&#10003;':cur?'&#9679;':i+1}</div>${i<STAGES.length-1?'<div class="lc-ln"></div>':''}</div>
+      <div class="f1 mt1"><div class="fn ${cur?'t-b fw6':done?'tc-3':''}">${st.name}</div>
+      ${cur?`<div class="fx-xs tc-3">Day ${a.daysInStage} of ${st.sla}d SLA</div>`:''}</div>
+    </div>`;
+  }).join('');
+
+  const kv=(l,v,warn=false)=>`<div class="card-sm"><div class="fx-xs tc-3">${l}</div><div class="fn fw5 mt1 ${warn?'t-r':''}">${v}</div></div>`;
+  const isIntg=a.stage==='integration';
+  const isLive=a.stage==='golive';
+
+  return `<div style="padding:14px 18px">
+    ${isIntg?`<div style="background:var(--blue-bg);border:1px solid var(--blue-bd);border-radius:var(--r);padding:10px 12px;margin-bottom:12px">
+      <div class="fx fxa gap2"><span style="font-size:14px">🔌</span><div>
+        <div class="fn fw6 t-b">Integration Team Stage</div>
+        <div class="fx-xs tc-2 mt1">Owner: <strong>Integration Team Lead</strong> &middot; Daily standup + weekly review required &middot; UAT sign-off mandatory before handover</div>
+      </div></div>
+    </div>`:''}
+    ${isLive?`<div style="background:var(--green-bg);border:1px solid var(--green-bd);border-radius:var(--r);padding:10px 12px;margin-bottom:12px">
+      <div class="fx fxa gap2"><span style="font-size:16px">&#10003;</span><div>
+        <div class="fn fw6 t-g">Customer is Already Live in Production</div>
+        <div class="fx-xs tc-2 mt1">Focus on: <strong>Usage</strong> &middot; <strong>Adoption (80%+ target)</strong> &middot; <strong>Issue resolution</strong> &middot; <strong>NPS collection</strong>. Move to Audit &amp; Validation when stable.</div>
+      </div></div>
+    </div>`:''}
+    <div class="g2 mb3">
+      ${kv('Planned Go-Live',fmtD(a.plannedGL))}
+      ${kv('Expected Go-Live',fmtD(a.expectedGL),a.expectedGL>a.plannedGL)}
+      ${kv('Days in Stage',`${a.daysInStage}d / ${s}d SLA`,a.daysInStage>s)}
+      ${kv('Last Activity',fmtD(a.lastAct),dAgo(a.lastAct)>14)}
+      ${kv('Next Meeting',a.nextMeet?fmtD(a.nextMeet):'Not set',!a.nextMeet)}
+      ${kv(isIntg?'Integration Status':'Audit Status',a.auditSt)}
+    </div>
+    <div class="fn fw5 tc-3 mb2" style="text-transform:uppercase;letter-spacing:.4px;font-size:10px">Lifecycle Progress</div>
+    ${lc}
+    ${a.notes?`<div class="divider"></div><div class="fx-xs tc-3 mb1">Notes</div><div class="fn tc-2">${a.notes}</div>`:''}
+  </div>`;
+}
+
+function renderPaneEdit(a){
+  const stOpts=STAGES.map(s=>`<option value="${s.id}" ${a.stage===s.id?'selected':''}>${s.name}</option>`).join('');
+  const rOpts=REGIONS.map(r=>`<option value="${r}" ${a.region===r?'selected':''}>${r}</option>`).join('');
+  const mOpts=MRRS.map(m=>`<option value="${m}" ${a.mrr===m?'selected':''}>${m}</option>`).join('');
+  const pOpts=PRIOS.map(p=>`<option value="${p}" ${a.priority===p?'selected':''}>${p}</option>`).join('');
+  const stOpts2=[['green','On Track'],['yellow','At Risk'],['red','Critical']].map(([v,l])=>`<option value="${v}" ${a.status===v?'selected':''}>${l}</option>`).join('');
+  const auOpts=['Not Started','In Progress','Completed'].map(v=>`<option value="${v}" ${a.auditSt===v?'selected':''}>${v}</option>`).join('');
+
+  return `<div style="padding:14px 18px">
+    <div class="fg fg2">
+      <div class="fl" style="grid-column:span 2"><label>Company Name</label><input id="e-company" value="${a.company}"></div>
+      <div class="fl"><label>Jira Key</label><input id="e-jira" value="${a.jira}"></div>
+      <div class="fl"><label>Region</label><select id="e-region">${rOpts}</select></div>
+      <div class="fl"><label>Stage</label><select id="e-stage">${stOpts}</select></div>
+      <div class="fl"><label>Status</label><select id="e-status">${stOpts2}</select></div>
+      <div class="fl"><label>MRR Tier</label><select id="e-mrr">${mOpts}</select></div>
+      <div class="fl"><label>Priority</label><select id="e-priority">${pOpts}</select></div>
+      <div class="fl"><label>Progress %</label><input id="e-prog" type="number" min="0" max="100" value="${a.prog}"></div>
+      <div class="fl"><label>Days in Stage</label><input id="e-dis" type="number" min="0" value="${a.daysInStage}"></div>
+      <div class="fl"><label>Owner (CSM)</label><input id="e-owner" value="${a.owner}"></div>
+      <div class="fl"><label>Planned Go-Live</label><input id="e-pgl" type="date" value="${a.plannedGL}"></div>
+      <div class="fl"><label>Expected Go-Live</label><input id="e-egl" type="date" value="${a.expectedGL}"></div>
+      <div class="fl"><label>Last Activity</label><input id="e-la" type="date" value="${a.lastAct}"></div>
+      <div class="fl"><label>Next Meeting</label><input id="e-nm" type="date" value="${a.nextMeet||''}"></div>
+      <div class="fl" style="grid-column:span 2"><label>Next Milestone</label><input id="e-mile" value="${a.nextMile||''}"></div>
+      <div class="fl" style="grid-column:span 2"><label>Active Blocker (leave blank if none)</label><input id="e-blk" value="${a.blocker||''}"></div>
+      <div class="fl"><label>Audit Status</label><select id="e-audit">${auOpts}</select></div>
+      <div class="fl"><label>Open Points Count</label><input id="e-op" type="number" min="0" value="${a.openPts}"></div>
+      <div class="fl" style="grid-column:span 2"><label>Notes</label><textarea id="e-notes" rows="3">${a.notes||''}</textarea></div>
+    </div>
+    <div class="fx gap2 mt3">
+      <button class="btn btn-p" onclick="saveEdit(${a.id})">Save Changes</button>
+      <button class="btn" onclick="setPTab('overview')">Cancel</button>
+      <button class="btn btn-r" style="margin-left:auto" onclick="confirmDelete(${a.id})">Delete Account</button>
+    </div>
+  </div>`;
+}
+
+function saveEdit(id){
+  const a=getA(id);if(!a)return;
+  const _ge=id=>{const el=document.getElementById(id);return el?el.value:null;};
+  const _gi=id=>{const v=_ge(id);return v!==null?parseInt(v)||0:0;};
+  if(_ge('e-company')!==null) a.company=_ge('e-company')||a.company;
+  if(_ge('e-jira')!==null) a.jira=_ge('e-jira')||a.jira;
+  if(_ge('e-region')!==null) a.region=_ge('e-region');
+  if(_ge('e-stage')!==null) a.stage=_ge('e-stage');
+  if(_ge('e-status')!==null) a.status=_ge('e-status');
+  if(_ge('e-mrr')!==null) a.mrr=_ge('e-mrr');
+  if(_ge('e-priority')!==null) a.priority=_ge('e-priority');
+  if(_ge('e-prog')!==null) a.prog=_gi('e-prog');
+  if(_ge('e-dis')!==null) a.daysInStage=_gi('e-dis');
+  if(_ge('e-owner')!==null) a.owner=_ge('e-owner');
+  if(_ge('e-pgl')!==null) a.plannedGL=_ge('e-pgl');
+  if(_ge('e-egl')!==null) a.expectedGL=_ge('e-egl');
+  if(_ge('e-la')!==null) a.lastAct=_ge('e-la');
+  if(_ge('e-nm')!==null) a.nextMeet=_ge('e-nm');
+  if(_ge('e-mile')!==null) a.nextMile=_ge('e-mile');
+  if(_ge('e-blk')!==null) a.blocker=_ge('e-blk');
+  if(_ge('e-audit')!==null) a.auditSt=_ge('e-audit');
+  if(_ge('e-op')!==null) a.openPts=_gi('e-op');
+  if(_ge('e-notes')!==null) a.notes=_ge('e-notes');
+  saveA(a);curPTab='overview';renderDP();
+  if(curPage==='accounts')renderAccounts();
+  if(curPage==='dashboard')renderDash();
+  updateNB();toast('Account updated');
+}
+
+function renderPaneMeetings(a){
+  const rows=(a.meetings||[]).map(m=>`
+    <div class="card-sm mb2">
+      <div class="fx fxa fxb mb1">
+        <div class="fx fxa gap2"><span class="t-b">&#128197;</span><span class="fw5 fn">${fmtD(m.date)}</span>${m.title?`<span class="fx-xs tc-3">&mdash; ${m.title}</span>`:''}</div>
+        <button class="btn btn-xs btn-r" onclick="deleteMeeting(${a.id},${m.id})">&#10005;</button>
+      </div>
+      ${m.notes?`<div class="fx-s tc-2">${m.notes}</div>`:''}
+    </div>`).join('');
+  return `<div style="padding:14px 18px">
+    <button class="btn btn-p btn-sm mb3" onclick="openAddMeetingMO(${a.id})">+ Log Meeting</button>
+    ${rows||'<div class="fx-s tc-3" style="text-align:center;padding:20px">No meetings logged yet</div>'}
+  </div>`;
+}
+
+function renderPanePoints(a){
+  const open=(a.points||[]).filter(p=>p.status!=='Resolved');
+  const resolved=(a.points||[]).filter(p=>p.status==='Resolved');
+  const mkRow=(p,showResolve)=>`
+    <div class="op-row">
+      <span class="bx ${p.prio==='High'?'bx-r':p.prio==='Medium'?'bx-a':'bx-n'}" style="font-size:9px;flex-shrink:0">${p.prio}</span>
+      <div class="f1">
+        <div class="fn fw5">${p.title}${p.blocker?`<span class="bx bx-r" style="font-size:9px;margin-left:5px">Blocker</span>`:''}</div>
+        <div class="fx-xs tc-3 mt1">${p.owner||'Unassigned'} &middot; ${p.age}d old</div>
+        ${p.notes?`<div class="fx-xs tc-2 mt1">${p.notes}</div>`:''}
+      </div>
+      <div class="fx gap1">
+        ${showResolve?`<button class="btn btn-xs btn-g" onclick="resolvePoint(${a.id},${p.id})">Resolve</button>`:''}
+        <button class="btn btn-xs btn-r" onclick="deletePoint(${a.id},${p.id})">&#10005;</button>
+      </div>
+    </div>`;
+  return `<div style="padding:14px 18px">
+    <button class="btn btn-p btn-sm mb3" onclick="openAddPointMO(${a.id})">+ Add Point</button>
+    ${open.length?open.map(p=>mkRow(p,true)).join(''):'<div class="fx-s tc-3 mb2">No open points</div>'}
+    ${resolved.length?`<div class="divider"></div><div class="fx-xs tc-3 mb2">Resolved (${resolved.length})</div>${resolved.map(p=>mkRow(p,false)).join('')}`:''}
+  </div>`;
+}
+
+function renderPaneAudit(a){
+  const isIntg=a.stage==='integration';
+  const isLiveStage=a.stage==='golive';
+  const list=isIntg?INTEGRATION_CHECKLIST:isLiveStage?LIVE_CHECKLIST:CHECKLIST;
+  // Ensure checks array is long enough
+  if(!a.checks) a.checks=[];
+  while(a.checks.length<list.length) a.checks.push(false);
+  const done=a.checks.slice(0,list.length).filter(Boolean).length;
+  return `<div style="padding:14px 18px">
+    <div class="fx fxa fxb mb3">
+      <div>
+        <span class="fn fw5">${isIntg?'Integration Checklist':isLiveStage?'Live Monitoring Checklist':'Audit Checklist'} (${done}/${list.length})</span>
+        ${isIntg?`<div class="fx-xs tc-3 mt1">Owner: Integration Team</div>`:isLiveStage?`<div class="fx-xs tc-3 mt1">Customer is live — monitor usage, adoption and issues daily</div>`:''}
+      </div>
+      <span class="bx ${a.auditSt==='Completed'?'bx-g':a.auditSt==='In Progress'?'bx-b':'bx-n'}">${a.auditSt}</span>
+    </div>
+    ${list.map((item,i)=>`
+      <div class="cl-row" onclick="toggleCheck(${a.id},${i})">
+        <div class="cl-chk ${(a.checks||[])[i]?'done':''}">${(a.checks||[])[i]?'&#10003;':''}</div>
+        <span class="fn ${(a.checks||[])[i]?'tc-3':''}" style="${(a.checks||[])[i]?'text-decoration:line-through':''}">${item}</span>
+      </div>`).join('')}
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// MODALS
+// ═══════════════════════════════════════════════════════
+function openMO(html){
+  document.getElementById('mo-box').innerHTML=html;
+  document.getElementById('mo').classList.add('on');
+}
+function closeMO(){document.getElementById('mo').classList.remove('on');}
+
+// ── ADD ACCOUNT ──
+function openAddMO(){
+  const stOpts=STAGES.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  const rOpts=REGIONS.map(r=>`<option value="${r}">${r}</option>`).join('');
+  openMO(`
+  <div class="mo-hd"><span class="mo-hd-title">Add New Account</span><button class="btn btn-sm" onclick="closeMO()">&#10005;</button></div>
+  <div class="mo-body">
+    <div class="fg fg2">
+      <div class="fl" style="grid-column:span 2"><label>Company Name *</label><input id="a-co" placeholder="e.g. Acme Corp"></div>
+      <div class="fl"><label>Jira Key</label><input id="a-jira" placeholder="OTB-33"></div>
+      <div class="fl"><label>Region</label><select id="a-reg">${rOpts}</select></div>
+      <div class="fl"><label>Stage</label><select id="a-stage">${stOpts}</select></div>
+      <div class="fl"><label>Status</label>
+        <select id="a-st"><option value="green">On Track</option><option value="yellow">At Risk</option><option value="red">Critical</option></select></div>
+      <div class="fl"><label>MRR Tier</label>
+        <select id="a-mrr">${MRRS.map(m=>`<option>${m}</option>`).join('')}</select></div>
+      <div class="fl"><label>Priority</label>
+        <select id="a-pri">${PRIOS.map(p=>`<option>${p}</option>`).join('')}</select></div>
+      <div class="fl"><label>Progress %</label><input id="a-prog" type="number" min="0" max="100" value="0"></div>
+      <div class="fl"><label>Owner (CSM)</label><input id="a-own" placeholder="e.g. Naveen N"></div>
+      <div class="fl"><label>Planned Go-Live</label><input id="a-pgl" type="date"></div>
+      <div class="fl"><label>Expected Go-Live</label><input id="a-egl" type="date"></div>
+      <div class="fl" style="grid-column:span 2"><label>Next Milestone</label><input id="a-mile" placeholder="e.g. API integration sign-off"></div>
+      <div class="fl" style="grid-column:span 2"><label>Active Blocker (leave blank if none)</label><input id="a-blk"></div>
+      <div class="fl" style="grid-column:span 2"><label>Notes</label><textarea id="a-notes" rows="2" placeholder="Any additional context..."></textarea></div>
+    </div>
+  </div>
+  <div class="mo-ft">
+    <button class="btn btn-p" onclick="saveAddAccount()">Add Account</button>
+    <button class="btn" onclick="closeMO()">Cancel</button>
+  </div>`);
+}
+
+function saveAddAccount(){
+  const _ga=id=>{const el=document.getElementById(id);return el?el.value:'';};
+  const co=_ga('a-co').trim();
+  if(!co){toast('Company name is required',false);return;}
+  const a={
+    id:uid(),
+    jira:_ga('a-jira')||`OTB-${nextId}`,
+    company:co,region:_ga('a-reg')||'Global',
+    stage:_ga('a-stage')||'handover',
+    status:_ga('a-st')||'green',
+    mrr:_ga('a-mrr')||'Not Set',
+    priority:_ga('a-pri')||'Medium',
+    prog:parseInt(_ga('a-prog'))||0,
+    daysInStage:0,owner:_ga('a-own'),
+    plannedGL:_ga('a-pgl'),
+    expectedGL:_ga('a-egl'),
+    nextMile:_ga('a-mile'),
+    blocker:_ga('a-blk'),
+    auditSt:'Not Started',notes:_ga('a-notes'),
+    lastAct:new Date().toISOString().slice(0,10),nextMeet:'',openPts:0,
+    meetings:[],points:[],checks:[false,false,false,false,false],
+  };
+  accounts.push(a);closeMO();render();toast(`${a.company} added`);
+}
+
+// ── EDIT ACCOUNT (from table row) ──
+function openEditMO(id){openDP(id);setPTab('edit');}
+
+// ── DELETE ──
+function confirmDelete(id){
+  const a=getA(id);if(!a)return;
+  openMO(`
+  <div class="mo-hd"><span class="mo-hd-title">Delete Account</span><button class="btn btn-sm" onclick="closeMO()">&#10005;</button></div>
+  <div class="mo-body" style="text-align:center;padding:24px">
+    <div style="font-size:32px;margin-bottom:12px">&#128465;</div>
+    <div class="fn fw6 mb2">Delete "${a.company}"?</div>
+    <div class="fx-s tc-2 mb4">This will permanently remove all data for this account including meetings, open points, and audit records.</div>
+    <div class="fx gap2" style="justify-content:center">
+      <button class="btn btn-r" onclick="doDelete(${id})">Yes, Delete</button>
+      <button class="btn" onclick="closeMO()">Cancel</button>
+    </div>
+  </div>`);
+}
+
+function doDelete(id){
+  accounts=accounts.filter(a=>a.id!==id);
+  closeMO();closeDP();render();toast('Account deleted');
+}
+
+// ── ADD MEETING ──
+function openAddMeetingMO(accountId){
+  openMO(`
+  <div class="mo-hd"><span class="mo-hd-title">Log Meeting</span><button class="btn btn-sm" onclick="closeMO()">&#10005;</button></div>
+  <div class="mo-body">
+    <div class="fg fg2">
+      <div class="fl"><label>Date *</label><input id="m-date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div class="fl"><label>Title</label><input id="m-title" placeholder="e.g. Weekly sync"></div>
+      <div class="fl" style="grid-column:span 2"><label>Attendees</label><input id="m-att" placeholder="e.g. Naveen, Customer PM"></div>
+      <div class="fl" style="grid-column:span 2"><label>Notes / Action Items</label><textarea id="m-notes" rows="4" placeholder="Key discussion points, decisions, next steps..."></textarea></div>
+    </div>
+  </div>
+  <div class="mo-ft">
+    <button class="btn btn-p" onclick="saveAddMeeting(${accountId})">Save Meeting</button>
+    <button class="btn" onclick="closeMO()">Cancel</button>
+  </div>`);
+}
+
+function saveAddMeeting(accountId){
+  const dt=document.getElementById('m-date').value;
+  if(!dt){toast('Date is required',false);return;}
+  const a=getA(accountId);if(!a)return;
+  const titleEl=document.getElementById('m-title');
+  const notesEl=document.getElementById('m-notes');
+  const m={id:uid(),date:dt,title:titleEl?titleEl.value:'',notes:notesEl?notesEl.value:''};
+  a.meetings.unshift(m);a.lastAct=dt;
+  saveA(a);closeMO();curDPid=accountId;curPTab='meetings';renderDP();toast('Meeting logged');
+}
+
+function deleteMeeting(accountId,meetingId){
+  const a=getA(accountId);if(!a)return;
+  a.meetings=a.meetings.filter(m=>m.id!==meetingId);
+  saveA(a);renderDP();toast('Meeting deleted');
+}
+
+// ── ADD OPEN POINT ──
+function openAddPointMO(accountId){
+  openMO(`
+  <div class="mo-hd"><span class="mo-hd-title">Add Open Point</span><button class="btn btn-sm" onclick="closeMO()">&#10005;</button></div>
+  <div class="mo-body">
+    <div class="fg fg2">
+      <div class="fl" style="grid-column:span 2"><label>Issue / Point *</label><input id="p-title" placeholder="Describe the issue clearly..."></div>
+      <div class="fl"><label>Priority</label>
+        <select id="p-pri">${PRIOS.map(p=>`<option>${p}</option>`).join('')}</select></div>
+      <div class="fl"><label>Owner</label><input id="p-own" placeholder="Who is responsible?"></div>
+      <div class="fl" style="grid-column:span 2"><label>Notes</label><textarea id="p-notes" rows="2" placeholder="Additional context..."></textarea></div>
+      <div class="fl" style="grid-column:span 2">
+        <label style="flex-direction:row;align-items:center;gap:8px;display:flex;text-transform:none;letter-spacing:0;font-size:12px;cursor:pointer">
+          <input id="p-blk" type="checkbox" style="width:14px;height:14px">
+          <span>Mark as <strong>Blocker</strong> (impacts go-live timeline)</span>
+        </label>
+      </div>
+    </div>
+  </div>
+  <div class="mo-ft">
+    <button class="btn btn-p" onclick="saveAddPoint(${accountId})">Add Point</button>
+    <button class="btn" onclick="closeMO()">Cancel</button>
+  </div>`);
+}
+
+function saveAddPoint(accountId){
+  const t=document.getElementById('p-title').value.trim();
+  if(!t){toast('Issue title is required',false);return;}
+  const a=getA(accountId);if(!a)return;
+  const blkEl=document.getElementById('p-blk');
+  const priEl=document.getElementById('p-pri');
+  const ownEl=document.getElementById('p-own');
+  const notEl=document.getElementById('p-notes');
+  const isBlk=blkEl?blkEl.checked:false;
+  const p={id:uid(),title:t,prio:priEl?priEl.value:'Medium',owner:ownEl?ownEl.value:'',notes:notEl?notEl.value:'',age:0,blocker:isBlk,status:'Open'};
+  a.points.push(p);
+  a.openPts=(a.points||[]).filter(x=>x.status!=='Resolved').length;
+  if(isBlk)a.blocker=t;
+  saveA(a);closeMO();curDPid=accountId;curPTab='points';renderDP();
+  updateNB();toast('Open point added');
+}
+
+function resolvePoint(accountId,pointId){
+  const a=getA(accountId);if(!a)return;
+  const p=a.points.find(x=>x.id===pointId);if(!p)return;
+  p.status='Resolved';
+  a.openPts=(a.points||[]).filter(x=>x.status!=='Resolved').length;
+  if(p.blocker&&!a.points.find(x=>x.blocker&&x.status!=='Resolved'))a.blocker='';
+  saveA(a);renderDP();updateNB();toast('Point resolved');
+}
+
+function deletePoint(accountId,pointId){
+  const a=getA(accountId);if(!a)return;
+  a.points=a.points.filter(p=>p.id!==pointId);
+  a.openPts=(a.points||[]).filter(x=>x.status!=='Resolved').length;
+  saveA(a);renderDP();updateNB();toast('Point deleted');
+}
+
+function toggleCheck(accountId,idx){
+  const a=getA(accountId);if(!a)return;
+  if(!a.checks)a.checks=[false,false,false,false,false];
+  a.checks[idx]=!a.checks[idx];
+  const done=a.checks.filter(Boolean).length;
+  a.auditSt=done===CHECKLIST.length?'Completed':done>0?'In Progress':'Not Started';
+  saveA(a);renderDP();toast(a.checks[idx]?'Item checked':'Item unchecked');
+}
+
+
+// ═══════════════════════════════════════════════════════
+// HEALTH PULSE MODULE
+// ═══════════════════════════════════════════════════════
+// Sentiment emoji map
+const SENTIMENTS=[
+  {k:'great',  label:'Great',     ic:'😊', col:'var(--green)', bg:'var(--green-bg)'},
+  {k:'good',   label:'Good',      ic:'🙂', col:'#22c55e',      bg:'var(--green-bg)'},
+  {k:'neutral',label:'Neutral',   ic:'😐', col:'var(--amber)',  bg:'var(--amber-bg)'},
+  {k:'worried',label:'Worried',   ic:'😟', col:'#f97316',      bg:'rgba(249,115,22,.12)'},
+  {k:'bad',    label:'Frustrated',ic:'😤', col:'var(--red)',    bg:'var(--red-bg)'},
+];
+
+function renderHealth(){
+  document.getElementById('pt').textContent='Customer Health Pulse';
+  document.getElementById('ps').textContent='NPS · Sentiment · Engagement · Churn Risk per account';
+  document.getElementById('ph-r').innerHTML=`<button class="btn btn-p btn-sm" onclick="openNPSBatch()">+ Log NPS for All</button>`;
+
+  // Compute engagement score for each account
+  const scored = accounts.map(a=>{
+    const h=calcHealth(a);
+    const sentiment=a.sentiment||'neutral';
+    const nps=a.nps!==undefined?a.nps:null;
+    const engage = Math.min(100, Math.max(0,
+      (a.meetings&&a.meetings.length?20:0)+
+      (a.lastAct&&dAgo(a.lastAct)<7?30:dAgo(a.lastAct)<14?15:0)+
+      (a.nextMeet?20:0)+
+      (a.openPts===0?15:a.openPts<3?8:0)+
+      (!a.blocker?15:0)
+    ));
+    const churnRisk = h<40?'High':h<65?'Medium':'Low';
+    return {...a,h,sentiment,nps,engage,churnRisk};
+  });
+
+  // Summary stats
+  const avgNPS = scored.filter(a=>a.nps!==null).length
+    ? Math.round(scored.filter(a=>a.nps!==null).reduce((s,a)=>s+a.nps,0)/scored.filter(a=>a.nps!==null).length)
+    : null;
+  const churnHigh = scored.filter(a=>a.churnRisk==='High').length;
+  const sentDist = SENTIMENTS.map(s=>({...s,count:scored.filter(a=>a.sentiment===s.k).length}));
+  const avgEngage = Math.round(scored.reduce((s,a)=>s+a.engage,0)/scored.length);
+
+  const rows = scored.map(a=>{
+    const sm=SENTIMENTS.find(s=>s.k===a.sentiment)||SENTIMENTS[2];
+    const npsColor=a.nps===null?'var(--tx3)':a.nps>=9?'var(--green)':a.nps>=7?'var(--amber)':'var(--red)';
+    const churnBadge=a.churnRisk==='High'?'bx-r':a.churnRisk==='Medium'?'bx-a':'bx-g';
+    return `<tr onclick="openHealthDetail(${a.id})" style="cursor:pointer">
+      <td><div class="fw5 fn">${a.company}</div><div class="fx-xs tc-3">${a.jira}</div></td>
+      <td><span class="sc">${sn(a.stage)}</span></td>
+      <td>${badge(a.status)}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="width:50px;background:var(--bg3);border-radius:100px;height:4px;overflow:hidden">
+            <div style="height:100%;width:${a.h}%;background:${a.h>=70?'var(--green)':a.h>=40?'var(--amber)':'var(--red)'};border-radius:100px"></div>
+          </div>
+          <span class="fx-xs mono" style="color:${a.h>=70?'var(--green)':a.h>=40?'var(--amber)':'var(--red)'}">${a.h}</span>
+        </div>
+      </td>
+      <td><span style="font-size:16px" title="${sm.label}">${sm.ic}</span></td>
+      <td><span class="mono fn" style="color:${npsColor};font-weight:600">${a.nps!==null?a.nps:'--'}</span></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="width:40px;background:var(--bg3);border-radius:100px;height:4px;overflow:hidden">
+            <div style="height:100%;width:${a.engage}%;background:var(--blue);border-radius:100px"></div>
+          </div>
+          <span class="fx-xs tc-2">${a.engage}%</span>
+        </div>
+      </td>
+      <td><span class="bx ${churnBadge}" style="font-size:9px">${a.churnRisk}</span></td>
+      <td>
+        <div style="display:flex;gap:4px">
+          ${SENTIMENTS.map(s=>`<button onclick="event.stopPropagation();setsentiment(${a.id},'${s.k}')" title="${s.label}"
+            style="padding:2px 5px;border:1px solid ${a.sentiment===s.k?s.col:'var(--bd)'};border-radius:4px;background:${a.sentiment===s.k?s.bg:'transparent'};cursor:pointer;font-size:12px">${s.ic}</button>`).join('')}
+        </div>
+      </td>
+      <td onclick="event.stopPropagation()">
+        <input type="number" min="0" max="10" value="${a.nps!==null?a.nps:''}" placeholder="0-10"
+          onchange="setNPS(${a.id},+this.value)"
+          style="width:52px;background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:3px 6px;color:var(--tx);font-size:12px;font-family:var(--m)">
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('pb').innerHTML=`
+  <div class="gm mb4">
+    <div class="met"><div class="met-l">Avg Health</div><div class="met-v" style="color:${Math.round(scored.reduce((s,a)=>s+a.h,0)/scored.length)>=70?'var(--green)':'var(--amber)'}">${Math.round(scored.reduce((s,a)=>s+a.h,0)/scored.length)}</div><div class="met-s">/100 portfolio</div></div>
+    <div class="met"><div class="met-l">Avg NPS</div><div class="met-v" style="color:${avgNPS===null?'var(--tx3)':avgNPS>=8?'var(--green)':avgNPS>=6?'var(--amber)':'var(--red)'}">${avgNPS!==null?avgNPS:'--'}</div><div class="met-s">${scored.filter(a=>a.nps!==null).length} responses</div></div>
+    <div class="met"><div class="met-l">Avg Engagement</div><div class="met-v t-b">${avgEngage}%</div><div class="met-s">responsiveness</div></div>
+    <div class="met"><div class="met-l">Churn Risk</div><div class="met-v t-r">${churnHigh}</div><div class="met-s">High risk accounts</div></div>
+    <div class="met"><div class="met-l">Feeling Great</div><div class="met-v t-g">${scored.filter(a=>['great','good'].includes(a.sentiment)).length}</div><div class="met-s">Happy customers</div></div>
+    <div class="met"><div class="met-l">Feeling Bad</div><div class="met-v t-r">${scored.filter(a=>['worried','bad'].includes(a.sentiment)).length}</div><div class="met-s">Need attention</div></div>
+  </div>
+  <div class="card mb4 card-p">
+    <div class="sec-title mb3">Sentiment Distribution</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      ${sentDist.map(s=>`<div style="background:${s.bg};border:1px solid ${s.col}33;border-radius:var(--r);padding:10px 16px;text-align:center;min-width:90px">
+        <div style="font-size:24px">${s.ic}</div>
+        <div style="font-size:16px;font-weight:600;color:${s.col};font-family:var(--m)">${s.count}</div>
+        <div class="fx-xs tc-2">${s.label}</div>
+      </div>`).join('')}
+    </div>
+  </div>
+  <div class="card" style="padding:0">
+    <div class="tw"><table>
+      <thead><tr><th>Account</th><th>Stage</th><th>Status</th><th>Health</th><th>Sentiment</th><th>NPS</th><th>Engagement</th><th>Churn Risk</th><th>Set Sentiment</th><th>Set NPS</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function setsentiment(id,s){const a=getA(id);if(!a)return;a.sentiment=s;saveA(a);renderHealth();toast('Sentiment updated');}
+function setNPS(id,n){const a=getA(id);if(!a)return;if(n<0||n>10)return;a.nps=n;saveA(a);toast('NPS saved');}
+
+function openHealthDetail(id){
+  const a=getA(id);if(!a)return;
+  const sm=SENTIMENTS.find(s=>s.k===(a.sentiment||'neutral'))||SENTIMENTS[2];
+  const engage=Math.min(100,Math.max(0,(a.meetings&&a.meetings.length?20:0)+(a.lastAct&&dAgo(a.lastAct)<7?30:dAgo(a.lastAct)<14?15:0)+(a.nextMeet?20:0)+(a.openPts===0?15:a.openPts<3?8:0)+(!a.blocker?15:0)));
+  openMO(`
+  <div class="mo-hd"><span class="mo-hd-title">Health Detail — ${a.company}</span><button class="btn btn-sm" onclick="closeMO()">&#10005;</button></div>
+  <div class="mo-body">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+      <div class="card-sm" style="text-align:center"><div style="font-size:28px">${sm.ic}</div><div class="fn fw5" style="color:${sm.col}">${sm.label}</div><div class="fx-xs tc-3">Sentiment</div></div>
+      <div class="card-sm" style="text-align:center"><div class="met-v" style="color:${a.nps!==null?(a.nps>=9?'var(--green)':a.nps>=7?'var(--amber)':'var(--red)'):'var(--tx3)'}">${a.nps!==null?a.nps:'--'}</div><div class="fx-xs tc-3">NPS Score</div></div>
+      <div class="card-sm" style="text-align:center"><div class="met-v t-b">${engage}%</div><div class="fx-xs tc-3">Engagement</div></div>
+    </div>
+    <div class="fn fw5 mb2">Engagement Breakdown</div>
+    ${[
+      ['Meetings logged',a.meetings&&a.meetings.length>0,'Helps — meeting history exists','No meetings logged yet'],
+      ['Activity in last 7 days',a.lastAct&&dAgo(a.lastAct)<7,'Last activity was recent','No recent activity — risk of disengagement'],
+      ['Next meeting scheduled',!!a.nextMeet,'Future meeting booked','No meeting scheduled'],
+      ['No open points',a.openPts===0,'No open issues — clean account','Has open points that need resolution'],
+      ['No active blocker',!a.blocker,'No blockers — smooth progress','Active blocker is dragging the account'],
+    ].map(([label,ok,good,bad])=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--bd)">
+        <span style="font-size:16px">${ok?'✅':'❌'}</span>
+        <div class="f1"><div class="fn">${label}</div><div class="fx-xs" style="color:${ok?'var(--green)':'var(--red)'}">${ok?good:bad}</div></div>
+      </div>`).join('')}
+    <div class="fl mt3"><label>Update NPS (0-10)</label>
+      <input id="hd-nps" type="number" min="0" max="10" value="${a.nps!==null?a.nps:''}" placeholder="Enter NPS score 0-10"></div>
+    <div class="fn fw5 mt3 mb2">Set Sentiment</div>
+    <div style="display:flex;gap:8px">${SENTIMENTS.map(s=>`<button onclick="setHealthSentiment(${a.id},'${s.k}')" style="padding:8px 12px;border:1.5px solid ${a.sentiment===s.k?s.col:'var(--bd)'};border-radius:var(--r);background:${a.sentiment===s.k?s.bg:'var(--bg2)'};cursor:pointer;font-size:18px">${s.ic}</button>`).join('')}</div>
+  </div>
+  <div class="mo-ft">
+    <button class="btn btn-p" onclick="saveHealthDetail(${a.id})">Save</button>
+    <button class="btn" onclick="closeMO()">Cancel</button>
+  </div>`);
+}
+
+function setHealthSentiment(id,s){const a=getA(id);if(!a)return;a.sentiment=s;saveA(a);openHealthDetail(id);}
+function saveHealthDetail(id){
+  const a=getA(id);if(!a)return;
+  const npsEl=document.getElementById('hd-nps');
+  if(npsEl&&npsEl.value!==undefined&&npsEl.value!==''){const n=parseInt(npsEl.value);if(!isNaN(n)&&n>=0&&n<=10){a.nps=n;saveA(a);}}
+  closeMO();renderHealth();toast('Health data saved');
+}
+function openNPSBatch(){
+  const rows=accounts.map(a=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--bd)">
+      <div class="f1 fn fw5">${a.company}</div>
+      ${SENTIMENTS.map(s=>`<button onclick="setsentiment(${a.id},'${s.k}')" style="padding:3px 6px;border:1px solid ${(a.sentiment||'neutral')===s.k?s.col:'var(--bd)'};border-radius:4px;background:${(a.sentiment||'neutral')===s.k?s.bg:'transparent'};cursor:pointer;font-size:13px">${s.ic}</button>`).join('')}
+      <input type="number" min="0" max="10" value="${a.nps!==null&&a.nps!==undefined?a.nps:''}" placeholder="NPS"
+        onchange="setNPS(${a.id},+this.value)"
+        style="width:52px;background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:3px 6px;color:var(--tx);font-size:12px">
+    </div>`).join('');
+  openMO(`
+  <div class="mo-hd"><span class="mo-hd-title">Log NPS & Sentiment — All Accounts</span><button class="btn btn-sm" onclick="closeMO()">&#10005;</button></div>
+  <div class="mo-body" style="max-height:65vh;overflow-y:auto">
+    <div class="fx-xs tc-3 mb3">Set sentiment emoji and NPS (0-10) for each account after your last touchpoint.</div>
+    ${rows}
+  </div>
+  <div class="mo-ft"><button class="btn btn-p" onclick="closeMO();renderHealth()">Done</button></div>`);
+}
+
+// ═══════════════════════════════════════════════════════
+// CAPACITY PLANNER MODULE
+// ═══════════════════════════════════════════════════════
+function renderCapacity(){
+  document.getElementById('pt').textContent='Capacity Planner';
+  document.getElementById('ps').textContent='CSM workload · Go-live forecast · Bottleneck detection';
+  document.getElementById('ph-r').innerHTML='';
+
+  const owners=[...new Set(accounts.map(a=>a.owner).filter(Boolean))];
+
+  // CSM Workload
+  // Integration stage accounts owned by Integration Team — show separately
+  const intgAccounts=accounts.filter(a=>a.stage==='integration');
+  const csmStats=owners.map(o=>{
+    const mine=accounts.filter(a=>a.owner===o);
+    const red=mine.filter(a=>a.status==='red').length;
+    const yel=mine.filter(a=>a.status==='yellow').length;
+    const avgH=mine.length?Math.round(mine.reduce((s,a)=>s+calcHealth(a),0)/mine.length):0;
+    const overloaded=red>=2||(mine.length>=8);
+    return {name:o,total:mine.length,red,yel,green:mine.filter(a=>a.status==='green').length,avgH,overloaded,accounts:mine};
+  });
+
+  // Stage bottlenecks — stages with more accounts than ideal
+  const stageCounts=STAGES.map(s=>({...s,count:accounts.filter(a=>a.stage===s.id).length}));
+  const bottlenecks=stageCounts.filter(s=>s.count>=4);
+
+  // Go-live forecast next 90 days
+  const now=new Date();
+  const in30=accounts.filter(a=>a.expectedGL&&new Date(a.expectedGL)<=new Date(now.getTime()+30*864e5)&&a.stage!=='stab'&&a.stage!=='golive');
+  const in60=accounts.filter(a=>a.expectedGL&&new Date(a.expectedGL)>new Date(now.getTime()+30*864e5)&&new Date(a.expectedGL)<=new Date(now.getTime()+60*864e5));
+  const in90=accounts.filter(a=>a.expectedGL&&new Date(a.expectedGL)>new Date(now.getTime()+60*864e5)&&new Date(a.expectedGL)<=new Date(now.getTime()+90*864e5));
+
+  const csmCards=csmStats.map(c=>`
+    <div class="card card-p" style="border-left:3px solid ${c.overloaded?'var(--red)':c.avgH>=70?'var(--green)':'var(--amber)'}">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        ${av(c.name,'av-l')}
+        <div class="f1">
+          <div class="fn fw6">${c.name}</div>
+          <div class="fx-xs tc-3">${c.total} accounts · avg health ${c.avgH}</div>
+        </div>
+        ${c.overloaded?'<span class="bx bx-r" style="font-size:9px">Overloaded</span>':'<span class="bx bx-g" style="font-size:9px">Balanced</span>'}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
+        <div style="text-align:center;background:var(--red-bg);border-radius:var(--r);padding:6px"><div class="fn fw6 t-r">${c.red}</div><div class="fx-xs tc-3">Critical</div></div>
+        <div style="text-align:center;background:var(--amber-bg);border-radius:var(--r);padding:6px"><div class="fn fw6 t-a">${c.yel}</div><div class="fx-xs tc-3">At Risk</div></div>
+        <div style="text-align:center;background:var(--green-bg);border-radius:var(--r);padding:6px"><div class="fn fw6 t-g">${c.green}</div><div class="fx-xs tc-3">On Track</div></div>
+      </div>
+      <div class="pw" style="height:5px"><div class="pb2 ${c.avgH>=70?'p-g':c.avgH>=40?'p-a':'p-r'}" style="width:${c.avgH}%;height:100%"></div></div>
+      <div class="fx-xs tc-3 mt1">Avg health: ${c.avgH}/100</div>
+      <div style="margin-top:10px">
+        ${c.accounts.slice(0,4).map(a=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0"><span style="width:8px;height:8px;border-radius:50%;background:${a.status==='red'?'var(--red)':a.status==='yellow'?'var(--amber)':'var(--green)'};flex-shrink:0;display:inline-block"></span><span class="fx-xs trunc" style="flex:1">${a.company}</span><span class="fx-xs sc">${sn(a.stage)}</span></div>`).join('')}
+        ${c.accounts.length>4?`<div class="fx-xs tc-3">+${c.accounts.length-4} more</div>`:''}
+      </div>
+    </div>`).join('');
+
+  const bottleHtml=bottlenecks.length?bottlenecks.map(s=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--bd)">
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0"></div>
+      <div class="fn f1"><span class="fw5">${s.name}</span> — <span class="t-r">${s.count} accounts stuck</span></div>
+      <span class="bx bx-r" style="font-size:9px">Bottleneck</span>
+    </div>`).join(''):'<div class="fn tc-3">No bottlenecks detected</div>';
+
+  const glRows=(win,label)=>win.length?`<div class="fn fw5 tc-2 mb1">${label} (${win.length})</div>${win.map(a=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd)">
+      <span class="fw5 fn f1">${a.company}</span>
+      <span class="sc">${sn(a.stage)}</span>
+      ${badge(a.status)}
+      <span class="fx-xs tc-3">${fmtD(a.expectedGL)}</span>
+    </div>`).join('')}<div class="mb3"></div>`:'' ;
+
+  document.getElementById('pb').innerHTML=`
+  <div class="gm mb4">
+    <div class="met"><div class="met-l">CSMs</div><div class="met-v">${owners.length}</div><div class="met-s">Active team members</div></div>
+    <div class="met"><div class="met-l">Go-Lives (30d)</div><div class="met-v t-b">${in30.length}</div><div class="met-s">Next 30 days</div></div>
+    <div class="met"><div class="met-l">Go-Lives (60d)</div><div class="met-v t-b">${in60.length}</div><div class="met-s">30-60 days</div></div>
+    <div class="met"><div class="met-l">Go-Lives (90d)</div><div class="met-v t-b">${in90.length}</div><div class="met-s">60-90 days</div></div>
+    <div class="met"><div class="met-l">Bottlenecks</div><div class="met-v ${bottlenecks.length?'t-r':'t-g'}">${bottlenecks.length}</div><div class="met-s">Stage pile-ups</div></div>
+    <div class="met"><div class="met-l">Overloaded CSMs</div><div class="met-v ${csmStats.filter(c=>c.overloaded).length?'t-r':'t-g'}">${csmStats.filter(c=>c.overloaded).length}</div><div class="met-s">Need rebalancing</div></div>
+  </div>
+  <div class="g2 mb4">
+    <div class="card card-p">
+      <div class="sec-title mb3">Stage Bottleneck Detector</div>
+      ${bottleHtml}
+      <div class="divider"></div>
+      <div class="sec-title mb3">All Stage Counts</div>
+      ${stageCounts.map(s=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+        <div class="fx-xs tc-2" style="width:130px;flex-shrink:0">${s.name}</div>
+        <div style="flex:1;background:var(--bg3);border-radius:100px;height:5px;overflow:hidden">
+          <div style="height:100%;width:${accounts.length?Math.round((s.count/accounts.length)*100):0}%;background:${s.count>=4?'var(--red)':s.count>=2?'var(--amber)':'var(--blue)'};border-radius:100px"></div>
+        </div>
+        <span class="mono fx-xs" style="min-width:16px;text-align:right;color:${s.count>=4?'var(--red)':'var(--tx2)'}">${s.count}</span>
+      </div>`).join('')}
+    </div>
+    <div class="card card-p">
+      <div class="sec-title mb3">Go-Live Forecast (Next 90 Days)</div>
+      ${glRows(in30,'Next 30 days')}
+      ${glRows(in60,'30–60 days')}
+      ${glRows(in90,'60–90 days')}
+      ${!in30.length&&!in60.length&&!in90.length?'<div class="fn tc-3">No go-lives with confirmed dates in next 90 days</div>':''}
+    </div>
+  </div>
+  <div class="sec-title mb3">CSM Workload</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">${csmCards}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// PLAYBOOKS MODULE
+// ═══════════════════════════════════════════════════════
+const PLAYBOOKS=[
+  {
+    id:'pb1',stage:'handover',icon:'🤝',title:'Sales Handover Playbook',
+    tags:['Kickoff','SOP','Stakeholders'],
+    steps:[
+      {title:'Receive handover package from Sales',desc:'Contract, deal notes, stakeholder contacts, customer expectations, any promises made by sales',action:'CSM'},
+      {title:'Schedule kickoff call within 48 hours',desc:'Invite: CSM, Implementation Lead, Customer Project Owner, Customer IT Lead, Customer Operations Head',action:'CSM'},
+      {title:'Send pre-kickoff questionnaire',desc:'IT stack, ERP system, number of users, locations, data volume, desired go-live date',action:'Customer'},
+      {title:'Get SOP signed before kickoff',desc:'Digital signature via DocuSign. Do not start kickoff without signed SOP.',action:'Customer'},
+      {title:'Assign RACI matrix in kickoff meeting',desc:'Responsible, Accountable, Consulted, Informed for all workstreams',action:'Both'},
+      {title:'Create account in tracker with all fields',desc:'Jira key, owner, dates, contacts, region, MRR tier',action:'CSM'},
+      {title:'Send kickoff summary email within 24h',desc:'Meeting notes, action items with owners and deadlines, next meeting date',action:'CSM'},
+    ],
+    watchouts:['Customer says "we\'ll sign SOP later" → STOP, make it prerequisite','IT contact not named → flag as open point immediately','No executive sponsor named → escalate to Sales AE'],
+    kpi:'SLA: 5 days. Exit: Kickoff done, SOP signed, RACI agreed.'
+  },
+  {
+    id:'pb2',stage:'integration',icon:'🔌',title:'Integration Setup Playbook',
+    tags:['API','Webhook','IT','ERP','UAT','Sign-off','Handover'],
+    owner:'Integration Team',
+    steps:[
+      // ── PHASE 1: KICKOFF & SETUP ─────────────────────────────
+      {title:'Assign Integration Team Owner',desc:'Integration Team Lead must be named on Day 1. Owner is responsible for all integration deliverables, timelines, and sign-offs. CSM to confirm in writing.',action:'Integration Team'},
+      {title:'Send Integration Requirements Document',desc:'Integration Team sends: IP whitelist, all API endpoints, webhook format & payload schema, authentication method (OAuth/API key), sandbox credentials, and data field mapping template. Must be sent within 24 hours of project start.',action:'Integration Team'},
+      {title:'Customer IT Environment Assessment',desc:'Integration Team conducts environment check: ERP version, OS, firewall rules, available ports, existing integrations, data volume. Document all findings.',action:'Integration Team'},
+      {title:'Confirm Sandbox Access within 48 Hours',desc:'Customer IT confirms sandbox credentials are live and accessible. Integration Team verifies connectivity. If sandbox not available by Day 3 → raise as CRITICAL BLOCKER immediately.',action:'Customer'},
+      // ── PHASE 2: DAILY MEETINGS ──────────────────────────────
+      {title:'Daily Standup Meeting (Week 1 & 2)',desc:'15-min daily call: Integration Team + Customer IT + CSM. Agenda: blockers from yesterday, plan for today, open items. Must be documented in meeting notes and updated in tracker same day. Time: 10:00 AM customer timezone.',action:'Integration Team'},
+      {title:'Weekly Integration Status Meeting',desc:'45-min weekly review every Monday: Integration Team Lead + CSM + Customer Project Owner. Review: progress vs plan, open issues, risks, next week targets. Minutes sent within 2 hours of meeting end.',action:'Both'},
+      // ── PHASE 3: TECHNICAL INTEGRATION ──────────────────────
+      {title:'API Configuration & Endpoint Testing',desc:'Integration Team configures all API endpoints. Test each endpoint individually: GET, POST, PUT, DELETE as applicable. Document pass/fail for each. Customer IT must be present during testing.',action:'Integration Team'},
+      {title:'Webhook Setup & Payload Verification',desc:'Integration Team sets up all webhooks. Send test payloads for each trigger event. Customer IT confirms receipt and correct format. Retry logic and error handling must be configured.',action:'Integration Team'},
+      {title:'Data Mapping Workshop',desc:'Integration Team + Customer IT run 2-hour data mapping session. Map every customer field to the platform field. Handle null values, data type mismatches, and mandatory fields. Get written sign-off on the mapping document.',action:'Both'},
+      {title:'End-to-End Integration Test (Round 1)',desc:'Integration Team runs full E2E test with sample data in staging: create record in ERP → verify it appears in platform → update → verify sync → delete → verify removal. Document all results.',action:'Integration Team'},
+      // ── PHASE 4: TOP TO TOP CALL ─────────────────────────────
+      {title:'Top-to-Top Call (Management Review)',desc:'Mandatory if integration is delayed beyond 50% of SLA or any blocker is unresolved for 5+ days. Attendees: YOUR VP/Director + Customer IT Director/CTO. Agenda: current status, blockers, escalation plan, revised timeline, accountability. CSM sets up the call, Integration Team Lead presents.',action:'Both'},
+      // ── PHASE 5: UAT TESTING ─────────────────────────────────
+      {title:'Integration UAT Test Preparation',desc:'Integration Team prepares UAT test cases document: 20+ real business scenarios covering all integration touchpoints. Scenarios must be based on customer actual daily workflows. Share with customer IT 3 days before UAT session.',action:'Integration Team'},
+      {title:'Integration UAT Testing Session',desc:'Formal UAT session: Customer IT team executes all test scenarios in staging environment. Integration Team observes and documents results. CSM present. Each scenario marked: PASS / FAIL / PARTIAL. No scenario skipped.',action:'Customer'},
+      {title:'UAT Defect Resolution',desc:'Integration Team fixes all FAIL and PARTIAL scenarios within 48 hours. P1 (blocking) defects get immediate war-room treatment. Daily update to customer on fix status. Re-test all fixed scenarios before declaring UAT complete.',action:'Integration Team'},
+      {title:'UAT Sign-off from Integration Team',desc:'Integration Team Lead formally signs off that all scenarios pass and integration is technically complete. Sign-off document includes: test date, tester names, scenario count passed, P1 count = 0, Integration Team Lead signature.',action:'Integration Team'},
+      {title:'Customer UAT Sign-off',desc:'Customer IT Lead counter-signs the UAT sign-off document confirming they have tested and accepted the integration. This is a mandatory gate — no handover without customer sign-off.',action:'Customer'},
+      // ── PHASE 6: HANDOVER ────────────────────────────────────
+      {title:'Integration Completion Handover from Integration Team',desc:'Formal handover from Integration Team to CSM. Handover package includes: (1) All API credentials and documentation, (2) Webhook configuration details, (3) Data mapping final document, (4) Known limitations or workarounds, (5) Support escalation path for integration issues post go-live, (6) Integration health monitoring setup. Integration Team Lead signs handover document.',action:'Integration Team'},
+      {title:'Integration Sign-off & Stage Closure',desc:'CSM receives and reviews the handover package. Any gaps must be resolved before sign-off. Once satisfied, CSM signs the Integration Complete document. Account stage moves to Configuration. Integration Team remains on standby for 7 days post-handover for any queries.',action:'CSM'},
+    ],
+    watchouts:[
+      'No named Integration Team owner by Day 1 → STOP, do not proceed until owner is confirmed in writing',
+      'Sandbox not available by Day 3 → Raise CRITICAL BLOCKER, escalate to IT Director, do not wait',
+      'Daily standup missed 2+ days → Escalate to Integration Team Manager immediately',
+      'Top-to-Top call not confirmed within 48h of trigger → CSM escalates to own VP to contact customer CTO directly',
+      'UAT scenario count below 20 → Reject UAT, Integration Team must add more scenarios',
+      'Customer refuses to sign UAT → Stop integration, document refusal, escalate to CSM Manager',
+      'Handover package incomplete → Do not sign off, list specific missing items in writing with 48h deadline',
+      'Odoo/SAP/Oracle connector issues → Assign senior Integration Engineer, daily update to all parties',
+      'Firewall blocking APIs → Send whitelist doc same day, escalate to IT Director if not resolved in 3 days',
+    ],
+    kpi:'SLA: 14 days. Owner: Integration Team. Exit: UAT signed by Integration Team + Customer, Handover complete, Integration Sign-off done.'
+  },
+  {
+    id:'pb3',stage:'training',icon:'📚',title:'Training Playbook',
+    tags:['LMS','Super-user','Attendance','Adoption'],
+    steps:[
+      {title:'Confirm 2 super-users (primary + backup)',desc:'Get names, emails, phone numbers. Schedule introduction call.',action:'Customer'},
+      {title:'Share training schedule 2 weeks in advance',desc:'Lock dates in calendar invite. Include LMS login credentials.',action:'CSM'},
+      {title:'Send pre-training prep guide',desc:'What to prepare, what to bring, system requirements',action:'CSM'},
+      {title:'Conduct Module 1: Core Workflows',desc:'Invoicing, job cards, customer records. Record session. Track attendance.',action:'CSM'},
+      {title:'Conduct Module 2: Reporting & Settings',desc:'Dashboard, reports, admin settings, user management',action:'CSM'},
+      {title:'Super-user practice session',desc:'Super-users practice independently for 3 days. CSM available for questions.',action:'Customer'},
+      {title:'Training assessment & sign-off',desc:'Quiz or practical assessment. Attendance must be 80%+. Get sign-off.',action:'Both'},
+    ],
+    watchouts:['Attendance <60% → reschedule at customer cost, notify manager','Super-user unavailable → immediately switch to LMS self-paced','Ramadan/peak season → rebook 4 weeks ahead'],
+    kpi:'SLA: 7 days. Exit: Training sign-off, attendance 80%+, super-users certified.'
+  },
+  {
+    id:'pb4',stage:'audit',icon:'🔍',title:'Audit & Validation Playbook',
+    tags:['UAT','P1','Sign-off','Compliance'],
+    steps:[
+      {title:'Create UAT test scenarios with customer',desc:'Map 20+ real business scenarios from customer\'s daily operations',action:'Both'},
+      {title:'Customer executes UAT in staging',desc:'Super-users run all scenarios. Document pass/fail. CSM observes.',action:'Customer'},
+      {title:'Log and prioritize all issues found',desc:'P1: Go-live blocker. P2: Workaround available. P3: Post go-live fix.',action:'CSM'},
+      {title:'Fix P1 issues within 48 hours',desc:'Immediate escalation to dev team. Daily status update to customer.',action:'CSM'},
+      {title:'Re-test failed scenarios',desc:'After fixes, re-run failed test cases. Document new results.',action:'Both'},
+      {title:'Compliance & regulatory check',desc:'VAT settings, regional compliance, data privacy requirements',action:'Both'},
+      {title:'Get formal audit sign-off',desc:'Customer signs audit report. Zero P1 issues required.',action:'Customer'},
+    ],
+    watchouts:['P1 bug found → war room within 2 hours, daily updates','7 accounts in audit simultaneously → check for resource bottleneck','Customer delays UAT → set hard deadline with auto-delay of go-live'],
+    kpi:'SLA: 7 days. Exit: Audit report signed, zero P1 issues.'
+  },
+  {
+    id:'pb5',stage:'golive',icon:'&#10003;',title:'Already Live — Post Go-Live Management',
+    tags:['Live','Hypercare','Monitoring','Adoption','Support'],
+    steps:[
+      {title:'Confirm Go-Live Date and Log It',desc:'Record the exact date the customer went live in production. Update account stage to Already Live. Set the go-live date field. This is Day 0 for all SLA counting.',action:'CSM'},
+      {title:'Day 1: Production Health Check',desc:'CSM calls customer on Day 1 of go-live. Verify: logins work for all users, transactions are processing, data is syncing correctly, no critical errors. Document status in meeting log.',action:'CSM'},
+      {title:'Day 1: Usage Monitoring',desc:'Check actual usage numbers: how many users logged in, how many transactions processed, any errors reported. If usage is zero, call customer within 1 hour to identify the issue.',action:'CSM'},
+      {title:'Week 1: Daily Check-in Calls',desc:'15-minute call every working day in Week 1. Fixed agenda: (1) Issues since yesterday, (2) Usage numbers, (3) User feedback, (4) Action items for today. Log every call as a meeting.',action:'CSM'},
+      {title:'Identify and Fix P1 Production Issues',desc:'Any issue that stops core business operations is P1. War room within 2 hours. Fix within 24 hours. Customer gets hourly updates until resolved. Document root cause and fix.',action:'CSM'},
+      {title:'Monitor Old System Shutdown',desc:'Confirm the old system or manual process has been shut down. If customer is still running both systems in parallel, escalate to customer management immediately — dual-running kills adoption.',action:'Both'},
+      {title:'User Adoption Tracking — Week 1',desc:'Identify which users have not logged in after 3 days. Share list with customer manager to follow up internally. Target: 80%+ active users by end of Week 1.',action:'CSM'},
+      {title:'Week 2: NPS Survey',desc:'Collect NPS score from all users (0-10). Log scores in Health Pulse. NPS below 7 triggers immediate action plan within 24 hours.',action:'CSM'},
+      {title:'Weekly Status Report to Customer Management',desc:'Every Monday: usage stats, transaction volume, open issues, adoption rate, next week plan. Send to customer VP or Director — not just project manager.',action:'CSM'},
+      {title:'Resolve All Outstanding Open Points',desc:'All P2 and P3 issues logged during go-live week must be resolved. Target: zero open P1/P2 by Day 14. P3 issues can carry into stabilization.',action:'CSM'},
+      {title:'30-Day Hypercare Review Meeting',desc:'Formal 30-day review: ROI achieved vs promised, adoption rate, issues resolved, user satisfaction score, expansion opportunities. Attendees: CSM + Customer VP + Account Manager.',action:'Both'},
+      {title:'Hand-off to Audit and Validation Stage',desc:'Once production is stable and usage is confirmed, move account to Audit and Validation stage for formal audit. Brief the audit team: go-live date, open issues, usage stats, NPS score.',action:'CSM'},
+    ],
+    watchouts:[
+      'Zero logins on Day 1 - do not wait, call customer within 1 hour and find the blocker',
+      'Old system still running after Day 3 - escalate to customer management, dual-running kills adoption',
+      'P1 issue in production - war room within 2 hours, hourly updates to customer, executive communication',
+      'User adoption below 50% at Week 2 - emergency adoption intervention, get customer manager to mandate usage',
+      'NPS score below 7 - root cause analysis same day, recovery plan within 24 hours, exec escalation',
+      'Customer wants to roll back - escalate to your VP immediately, do NOT agree without VP approval',
+      'Customer stops responding after go-live - risk of churn, escalate to Account Manager within 48 hours',
+    ],
+    kpi:'SLA: 30 days monitoring. Already Live = customer is in production. Focus on usage, adoption, issue resolution, NPS. Exit: Move to Audit when stable.'
+  },
+  {
+    id:'pb6',stage:'stab',icon:'🛡️',title:'Stabilization Playbook',
+    tags:['Adoption','Hypercare','Renewal','NPS'],
+    steps:[
+      {title:'Weekly usage report for 30 days',desc:'Active users, transaction volume, feature adoption rate. Share with customer management.',action:'CSM'},
+      {title:'Identify low-adoption users',desc:'List users with <3 logins in first week. Customer manager to follow up internally.',action:'Both'},
+      {title:'Collect NPS score at Day 14',desc:'Survey all users. NPS <7 → immediate improvement plan.',action:'CSM'},
+      {title:'Resolve all outstanding open points',desc:'P2 and P3 issues from audit. Target: zero open points by Day 30.',action:'Both'},
+      {title:'Conduct 30-day business review',desc:'ROI achieved, adoption metrics, expansion opportunities, renewal discussion',action:'Both'},
+      {title:'Warm hand-off to Account Manager',desc:'Introduction email, full account brief, open items handed over',action:'CSM'},
+      {title:'Close implementation project',desc:'Archive all documents, update tracker to Stabilized, log final NPS',action:'CSM'},
+    ],
+    watchouts:['NPS <7 → exec escalation and recovery plan','Adoption <50% at Day 30 → risk of churn, emergency intervention','Customer not responding → contact at C-level'],
+    kpi:'SLA: 30 days. Exit: 30 days stable, NPS 7+, CSM hand-off complete.'
+  },
+  {
+    id:'pb7',stage:'all',icon:'🚨',title:'Blocker Resolution Playbook',
+    tags:['Escalation','Blocker','Crisis'],
+    steps:[
+      {title:'Log blocker in tracker immediately',desc:'Title, owner, days active, impact on go-live',action:'CSM'},
+      {title:'Identify root cause',desc:'Is it customer IT? Legal? Resource? Decision? External vendor?',action:'CSM'},
+      {title:'Day 3: First escalation if not resolved',desc:'Escalate to customer\'s direct manager. Written summary of impact.',action:'CSM'},
+      {title:'Day 7: Second escalation',desc:'Escalate to your Manager AND customer\'s VP/Director level',action:'Manager'},
+      {title:'Day 14: Executive escalation',desc:'Your VP contacts customer C-level. Formal letter with financial impact of delay.',action:'VP'},
+      {title:'Document impact of delay',desc:'Each day of delay = X cost to customer + X cost to your team. Make it tangible.',action:'CSM'},
+      {title:'Resolve, document, and prevent',desc:'Post-resolution: root cause analysis, prevention measure for next accounts',action:'CSM'},
+    ],
+    watchouts:['Never wait more than 7 days before first escalation','Always document in writing — verbal escalations don\'t count','Calculate and communicate financial impact of delay'],
+    kpi:'Blockers resolved within 14 days. Escalation ladder strictly followed.'
+  },
+];
+
+// ═══════════════════════════════════════════════════════
+// PLAYBOOKS — FULLY EDITABLE PER-ACCOUNT SYSTEM
+// ═══════════════════════════════════════════════════════
+let selPB=null;       // index of selected global template
+let pbMode='list';    // 'list' | 'view' | 'edit' | 'new' | 'account'
+let pbEditStep=null;  // step being edited inside a playbook
+let pbAccView=null;   // accountId for per-account playbook view
+
+// Per-account playbooks: { accountId: { stageId: [steps], customNotes, checklist } }
+let accountPlaybooks={};
+
+function getAccountPB(accountId){
+  if(!accountPlaybooks[accountId])accountPlaybooks[accountId]={};
+  return accountPlaybooks[accountId];
+}
+
+function getAccountStagePB(accountId,stageId){
+  const apb=getAccountPB(accountId);
+  if(!apb[stageId]){
+    // Clone from global template for this stage
+    const globalPB=PLAYBOOKS.find(p=>p.stage===stageId);
+    apb[stageId]={
+      steps: globalPB?JSON.parse(JSON.stringify(globalPB.steps)):[],
+      watchouts: globalPB?[...globalPB.watchouts]:[],
+      notes:'',
+      customTitle: globalPB?globalPB.title:'Custom Playbook for '+sn(stageId),
+      kpi: globalPB?globalPB.kpi:'',
+      owner: globalPB?globalPB.owner||'':'',
+    };
+  }
+  return apb[stageId];
+}
+
+function renderPlaybooks(){
+  document.getElementById('pt').textContent='Playbooks';
+  document.getElementById('ps').textContent='';
+
+  if(pbMode==='account'&&pbAccView){renderAccountPlaybooks();return;}
+  if(pbMode==='view'&&selPB!==null){renderPlaybookDetail();return;}
+  if(pbMode==='edit'&&selPB!==null){renderPlaybookEditor();return;}
+  if(pbMode==='new'){renderNewPlaybook();return;}
+  renderPlaybookList();
+}
+
+// ── PLAYBOOK LIST ──────────────────────────────────────
+function renderPlaybookList(){
+  document.getElementById('ps').textContent='Global templates + per-account customized playbooks';
+  document.getElementById('ph-r').innerHTML=`
+    <button class="btn btn-sm" onclick="pbMode='account';pbAccView=null;renderPlaybooks()">&#128100; Per-Account View</button>
+    <button class="btn btn-p btn-sm" onclick="pbMode='new';renderPlaybooks()">+ New Playbook</button>`;
+
+  const cards=PLAYBOOKS.map((pb,i)=>{
+    const col=pb.stage==='all'?'var(--red)':pb.stage==='integration'?'var(--amber)':pb.stage==='golive'?'var(--green)':'var(--blue)';
+    return `
+    <div class="card card-p" style="border-left:3px solid ${col};transition:all .12s">
+      <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px">
+        <span style="font-size:22px">${pb.icon}</span>
+        <div class="f1">
+          <div class="fn fw6">${pb.title}</div>
+          <div class="fx-xs tc-3 mt1">${pb.steps.length} steps${pb.owner?' &middot; <span style="color:var(--amber)">'+pb.owner+'</span>':''}</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px">
+            ${pb.tags.map(t=>`<span class="bx bx-n" style="font-size:9px">${t}</span>`).join('')}
+            ${pb.owner?`<span class="bx bx-p" style="font-size:9px">&#128101; ${pb.owner}</span>`:''}
+          </div>
+        </div>
+        ${pb.stage!=='all'?`<span class="sc">${sn(pb.stage)}</span>`:'<span class="bx bx-r" style="font-size:9px">Universal</span>'}
+      </div>
+      <div class="fx-xs tc-3 mb3" style="font-style:italic">${pb.kpi.slice(0,80)}...</div>
+      <div class="fx gap2">
+        <button class="btn btn-sm btn-p" onclick="selPB=${i};pbMode='view';renderPlaybooks()">View</button>
+        <button class="btn btn-sm" onclick="selPB=${i};pbMode='edit';renderPlaybooks()">&#9998; Edit</button>
+        <button class="btn btn-xs btn-r" onclick="deletePlaybook(${i})" style="margin-left:auto">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('pb').innerHTML=`
+  <div style="background:var(--blue-bg);border:1px solid var(--blue-bd);border-radius:var(--r);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+    <div class="f1"><div class="fn fw6 mb1">&#128214; Playbook System</div>
+      <div class="fx-s tc-2">Global templates apply to all accounts. Use <strong>Per-Account View</strong> to customize each account individually. Edit any template — changes apply to new accounts only.</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">${cards}`;
+}
+
+// ── VIEW PLAYBOOK ──────────────────────────────────────
+function renderPlaybookDetail(){
+  const pb=PLAYBOOKS[selPB];
+  const col=pb.stage==='all'?'var(--red)':pb.stage==='integration'?'var(--amber)':pb.stage==='golive'?'var(--green)':'var(--blue)';
+  document.getElementById('ps').textContent=pb.title;
+  document.getElementById('ph-r').innerHTML=`
+    <button class="btn btn-sm" onclick="pbMode='list';selPB=null;renderPlaybooks()">&#8592; All Playbooks</button>
+    <button class="btn btn-p btn-sm" onclick="pbMode='edit';renderPlaybooks()">&#9998; Edit This Playbook</button>`;
+
+  const steps=pb.steps.map((s,i)=>`
+    <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:16px">
+      <div style="width:26px;height:26px;border-radius:50%;background:${col};color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">${i+1}</div>
+      <div class="f1">
+        <div class="fn fw6 mb1">${s.title}</div>
+        <div class="fx-s tc-2 mb2" style="line-height:1.6">${s.desc}</div>
+        <span class="bx ${s.action==='CSM'?'bx-b':s.action==='Customer'?'bx-a':s.action==='Integration Team'?'bx-p':'bx-g'}" style="font-size:9px">&#128100; ${s.action}</span>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('pb').innerHTML=`
+  <div class="card card-p mb4" style="border-left:3px solid ${col}">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <span style="font-size:28px">${pb.icon}</span>
+      <div class="f1">
+        <div style="font-size:16px;font-weight:600">${pb.title}</div>
+        <div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap">
+          ${pb.tags.map(t=>`<span class="bx bx-n" style="font-size:9px">${t}</span>`).join('')}
+          ${pb.owner?`<span class="bx bx-p" style="font-size:9px">&#128101; ${pb.owner}</span>`:''}
+        </div>
+      </div>
+    </div>
+    ${pb.owner?`<div style="background:var(--purple-bg);border:1px solid rgba(167,139,250,.25);border-radius:var(--r);padding:8px 12px;margin-bottom:8px">
+      <div class="fx-xs fw6" style="color:var(--purple)">&#128272; Owner: ${pb.owner}</div>
+      <div class="fx-xs tc-2 mt1">This stage is owned by <strong>${pb.owner}</strong>. CSM facilitates and tracks.</div>
+    </div>`:''}
+    <div class="fx-xs" style="color:${col};font-family:var(--m)">${pb.kpi}</div>
+  </div>
+  <div class="g2">
+    <div>
+      <div class="sec-title mb3">Steps (${pb.steps.length})</div>
+      ${steps}
+    </div>
+    <div>
+      <div class="sec-title mb3">Watch-Outs &#9888;</div>
+      <div class="card-sm mb4">
+        ${pb.watchouts.map(w=>`<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd);font-size:12px"><span style="color:var(--red);flex-shrink:0">&#9888;</span><span class="tc-2">${w}</span></div>`).join('')}
+      </div>
+      <div class="sec-title mb3">Apply to Account</div>
+      <div class="card-sm">
+        <div class="fn fw5 mb2">Apply all steps to a specific account</div>
+        <select id="pb-acc-sel" class="fi" style="width:100%;margin-bottom:8px">
+          <option value="">Select account...</option>
+          ${accounts.map(a=>`<option value="${a.id}">${a.company} (${sn(a.stage)})</option>`).join('')}
+        </select>
+        <button class="btn btn-p btn-sm" onclick="applyPlaybook(${selPB})">Apply Playbook Steps</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── EDIT PLAYBOOK ──────────────────────────────────────
+function renderPlaybookEditor(){
+  const pb=PLAYBOOKS[selPB];
+  document.getElementById('ps').textContent='Editing: '+pb.title;
+  document.getElementById('ph-r').innerHTML=`
+    <button class="btn btn-sm" onclick="pbMode='view';pbEditStep=null;renderPlaybooks()">Cancel</button>
+    <button class="btn btn-p btn-sm" onclick="saveGlobalPB(${selPB})">&#10003; Save Playbook</button>`;
+
+  const stageOpts=STAGES.map(s=>`<option value="${s.id}" ${pb.stage===s.id?'selected':''}>${s.name}</option>`).join('');
+  const actionOpts=['CSM','Customer','Integration Team','Both','Manager','VP'].map(a=>`<option value="${a}">${a}</option>`).join('');
+
+  const stepsHtml=pb.steps.map((s,i)=>`
+    <div style="display:flex;gap:10px;align-items:flex-start;padding:10px;background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);margin-bottom:8px" id="step-row-${i}">
+      <div style="width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">${i+1}</div>
+      <div class="f1">
+        <input value="${s.title.replace(/"/g,'&quot;')}" id="st-title-${i}"
+          style="width:100%;background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r);padding:5px 8px;font-size:12px;color:var(--tx);margin-bottom:5px">
+        <textarea id="st-desc-${i}" rows="2"
+          style="width:100%;background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r);padding:5px 8px;font-size:11px;color:var(--tx2);resize:vertical;margin-bottom:5px;font-family:var(--f);line-height:1.5">${s.desc}</textarea>
+        <select id="st-action-${i}" style="background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r);padding:4px 8px;font-size:11px;color:var(--tx)">
+          ${['CSM','Customer','Integration Team','Both','Manager','VP'].map(a=>`<option value="${a}" ${s.action===a?'selected':''}>${a}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+        <button class="btn btn-xs" onclick="movePBStep(${selPB},${i},'up')" ${i===0?'disabled':''} title="Move up">&#8593;</button>
+        <button class="btn btn-xs" onclick="movePBStep(${selPB},${i},'down')" ${i===pb.steps.length-1?'disabled':''} title="Move down">&#8595;</button>
+        <button class="btn btn-xs btn-r" onclick="deletePBStep(${selPB},${i})" title="Delete">&#10005;</button>
+      </div>
+    </div>`).join('');
+
+  const watchoutsHtml=pb.watchouts.map((w,i)=>`
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <input value="${w.replace(/"/g,'&quot;')}" id="wo-${i}"
+        style="flex:1;background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:5px 8px;font-size:12px;color:var(--tx)">
+      <button class="btn btn-xs btn-r" onclick="deletePBWatchout(${selPB},${i})">&#10005;</button>
+    </div>`).join('');
+
+  document.getElementById('pb').innerHTML=`
+  <div class="card card-p mb4">
+    <div class="sec-title mb3">Playbook Info</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fl" style="grid-column:span 2"><label>Title</label><input id="pb-title" value="${pb.title.replace(/"/g,'&quot;')}"></div>
+      <div class="fl"><label>Icon (emoji)</label><input id="pb-icon" value="${pb.icon}" style="font-size:18px;text-align:center"></div>
+      <div class="fl"><label>Stage</label><select id="pb-stage">${stageOpts}<option value="all" ${pb.stage==='all'?'selected':''}>All Stages</option></select></div>
+      <div class="fl"><label>Owner (optional)</label><input id="pb-owner" value="${pb.owner||''}" placeholder="e.g. Integration Team"></div>
+      <div class="fl" style="grid-column:span 2"><label>KPI / Exit Condition</label><input id="pb-kpi" value="${pb.kpi.replace(/"/g,'&quot;')}"></div>
+      <div class="fl"><label>Tags (comma separated)</label><input id="pb-tags" value="${pb.tags.join(', ')}"></div>
+    </div>
+  </div>
+
+  <div class="card card-p mb4">
+    <div class="fx fxa fxb mb3">
+      <span class="sec-title">Steps (${pb.steps.length})</span>
+      <button class="btn btn-p btn-xs" onclick="addPBStep(${selPB})">+ Add Step</button>
+    </div>
+    <div id="pb-steps-list">${stepsHtml}</div>
+  </div>
+
+  <div class="card card-p mb4">
+    <div class="fx fxa fxb mb3">
+      <span class="sec-title">Watch-Outs (${pb.watchouts.length})</span>
+      <button class="btn btn-xs btn-p" onclick="addPBWatchout(${selPB})">+ Add</button>
+    </div>
+    <div id="pb-wo-list">${watchoutsHtml}</div>
+  </div>
+
+  <div class="fx gap2">
+    <button class="btn btn-p" onclick="saveGlobalPB(${selPB})">&#10003; Save All Changes</button>
+    <button class="btn" onclick="pbMode='view';pbEditStep=null;renderPlaybooks()">Cancel</button>
+    <button class="btn btn-r" onclick="deletePlaybook(${selPB})" style="margin-left:auto">Delete Playbook</button>
+  </div>`;
+}
+
+function saveGlobalPB(idx){
+  const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const pb=PLAYBOOKS[idx];
+  pb.title=g('pb-title')||pb.title;
+  pb.icon=g('pb-icon')||pb.icon;
+  pb.stage=g('pb-stage')||pb.stage;
+  pb.owner=g('pb-owner');
+  pb.kpi=g('pb-kpi')||pb.kpi;
+  pb.tags=g('pb-tags').split(',').map(t=>t.trim()).filter(Boolean);
+  // Save steps
+  pb.steps.forEach((s,i)=>{
+    const t=g('st-title-'+i);const d=document.getElementById('st-desc-'+i);const a=document.getElementById('st-action-'+i);
+    if(t)s.title=t;
+    if(d)s.desc=d.value.trim();
+    if(a)s.action=a.value;
+  });
+  // Save watchouts
+  pb.watchouts=pb.watchouts.map((w,i)=>{
+    const el=document.getElementById('wo-'+i);return el?el.value.trim():w;
+  }).filter(Boolean);
+  pbMode='view';pbEditStep=null;renderPlaybooks();toast('Playbook saved');
+}
+
+function addPBStep(idx){
+  PLAYBOOKS[idx].steps.push({title:'New Step',desc:'Describe what needs to happen in this step.',action:'CSM'});
+  renderPlaybooks();
+}
+function deletePBStep(idx,stepIdx){
+  PLAYBOOKS[idx].steps.splice(stepIdx,1);renderPlaybooks();
+}
+function movePBStep(idx,stepIdx,dir){
+  const steps=PLAYBOOKS[idx].steps;
+  if(dir==='up'&&stepIdx>0)[steps[stepIdx-1],steps[stepIdx]]=[steps[stepIdx],steps[stepIdx-1]];
+  else if(dir==='down'&&stepIdx<steps.length-1)[steps[stepIdx],steps[stepIdx+1]]=[steps[stepIdx+1],steps[stepIdx]];
+  renderPlaybooks();
+}
+function addPBWatchout(idx){
+  PLAYBOOKS[idx].watchouts.push('New watch-out — describe the risk');renderPlaybooks();
+}
+function deletePBWatchout(idx,wIdx){
+  PLAYBOOKS[idx].watchouts.splice(wIdx,1);renderPlaybooks();
+}
+function deletePlaybook(idx){
+  if(!confirm('Delete "'+PLAYBOOKS[idx].title+'"?'))return;
+  PLAYBOOKS.splice(idx,1);pbMode='list';selPB=null;renderPlaybooks();toast('Playbook deleted');
+}
+
+// ── NEW PLAYBOOK ──────────────────────────────────────
+function renderNewPlaybook(){
+  document.getElementById('ps').textContent='Create new playbook';
+  document.getElementById('ph-r').innerHTML=`<button class="btn btn-sm" onclick="pbMode='list';renderPlaybooks()">&#8592; Cancel</button>`;
+  const stageOpts=STAGES.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  document.getElementById('pb').innerHTML=`
+  <div class="card card-p">
+    <div class="sec-title mb3">New Playbook</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
+      <div class="fl" style="grid-column:span 2"><label>Title *</label><input id="new-pb-title" placeholder="e.g. Partner Integration Playbook"></div>
+      <div class="fl"><label>Icon (emoji)</label><input id="new-pb-icon" value="📋" style="font-size:18px;text-align:center"></div>
+      <div class="fl"><label>Stage</label><select id="new-pb-stage">${stageOpts}<option value="all">All Stages</option></select></div>
+      <div class="fl"><label>Owner</label><input id="new-pb-owner" placeholder="e.g. CSM, Integration Team"></div>
+      <div class="fl"><label>Tags (comma separated)</label><input id="new-pb-tags" placeholder="e.g. Setup, Testing, Sign-off"></div>
+      <div class="fl" style="grid-column:span 3"><label>KPI / Exit Condition</label><input id="new-pb-kpi" placeholder="e.g. SLA: 7 days. Exit: Sign-off received."></div>
+    </div>
+    <div class="fn fw5 mb2">Initial Steps</div>
+    <div id="new-steps-container">
+      <div style="display:flex;gap:8px;margin-bottom:6px">
+        <input placeholder="Step 1 title" id="new-s0" style="flex:1;background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:6px 10px;font-size:12px;color:var(--tx)">
+        <select id="new-a0" style="background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:6px 8px;font-size:11px;color:var(--tx)">
+          ${['CSM','Customer','Integration Team','Both','Manager','VP'].map(a=>`<option>${a}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-xs mt2 mb4" onclick="addNewPBStepRow()">+ Add Step</button>
+    <div class="fx gap2">
+      <button class="btn btn-p" onclick="createNewPlaybook()">&#10003; Create Playbook</button>
+      <button class="btn" onclick="pbMode='list';renderPlaybooks()">Cancel</button>
+    </div>
+  </div>`;
+}
+
+let newStepCount=1;
+function addNewPBStepRow(){
+  const cont=document.getElementById('new-steps-container');if(!cont)return;
+  const div=document.createElement('div');div.style.cssText='display:flex;gap:8px;margin-bottom:6px';
+  div.innerHTML=`<input placeholder="Step ${newStepCount+1} title" id="new-s${newStepCount}" style="flex:1;background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:6px 10px;font-size:12px;color:var(--tx)">
+    <select id="new-a${newStepCount}" style="background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:6px 8px;font-size:11px;color:var(--tx)">
+      ${['CSM','Customer','Integration Team','Both','Manager','VP'].map(a=>`<option>${a}</option>`).join('')}
+    </select>`;
+  cont.appendChild(div);newStepCount++;
+}
+
+function createNewPlaybook(){
+  const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const title=g('new-pb-title');
+  if(!title){toast('Title is required',false);return;}
+  const steps=[];
+  for(let i=0;i<newStepCount;i++){
+    const t=g('new-s'+i);const aEl=document.getElementById('new-a'+i);
+    if(t)steps.push({title:t,desc:'',action:aEl?aEl.value:'CSM'});
+  }
+  const newPB={id:'custom_'+uid(),stage:g('new-pb-stage')||'all',icon:g('new-pb-icon')||'📋',title,
+    tags:g('new-pb-tags').split(',').map(t=>t.trim()).filter(Boolean),
+    owner:g('new-pb-owner'),steps:steps.length?steps:[{title:'Step 1',desc:'',action:'CSM'}],
+    watchouts:[],kpi:g('new-pb-kpi')};
+  PLAYBOOKS.push(newPB);
+  newStepCount=1;pbMode='list';renderPlaybooks();toast('Playbook created: '+title);
+}
+
+// ── PER-ACCOUNT PLAYBOOKS ────────────────────────────
+function renderAccountPlaybooks(){
+  document.getElementById('ps').textContent='Customized playbooks per account';
+  document.getElementById('ph-r').innerHTML=`<button class="btn btn-sm" onclick="pbMode='list';pbAccView=null;renderPlaybooks()">&#8592; Global Playbooks</button>`;
+
+  if(pbAccView){
+    const a=getA(pbAccView);if(!a){pbAccView=null;renderPlaybooks();return;}
+    renderSingleAccountPB(a);return;
+  }
+
+  // List all accounts with their playbook status
+  const rows=accounts.map(a=>{
+    const apb=accountPlaybooks[a.id]||{};
+    const customized=Object.keys(apb).length;
+    const stagesPB=Object.keys(apb);
+    return `
+    <tr onclick="pbAccView=${a.id};renderPlaybooks()" style="cursor:pointer">
+      <td><div class="fw5 fn">${a.company}</div><div class="fx-xs tc-3">${a.jira}</div></td>
+      <td><span class="sc">${sn(a.stage)}</span></td>
+      <td>${badge(a.status)}</td>
+      <td>${customized?`<span class="bx bx-g" style="font-size:9px">&#9998; ${customized} customized</span>`:'<span class="bx bx-n" style="font-size:9px">Using global</span>'}</td>
+      <td class="fx-xs tc-2">${stagesPB.map(id=>sn(id)).join(', ')||'—'}</td>
+      <td><button class="btn btn-xs btn-p" onclick="event.stopPropagation();pbAccView=${a.id};renderPlaybooks()">Open</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('pb').innerHTML=`
+  <div style="background:var(--green-bg);border:1px solid var(--green-bd);border-radius:var(--r);padding:12px 16px;margin-bottom:16px">
+    <div class="fn fw6 mb1">&#128100; Per-Account Playbooks</div>
+    <div class="fx-s tc-2">Each account has its own customizable playbook for every stage. Changes here only affect that account — global templates stay unchanged. Click an account to view and edit its playbooks.</div>
+  </div>
+  <div class="card" style="padding:0">
+    <div class="tw"><table>
+      <thead><tr><th>Account</th><th>Current Stage</th><th>Status</th><th>Customization</th><th>Customized Stages</th><th>Action</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderSingleAccountPB(a){
+  const apb=getAccountPB(a.id);
+  document.getElementById('ps').textContent=a.company+' — Customized Playbooks';
+  document.getElementById('ph-r').innerHTML=`
+    <button class="btn btn-sm" onclick="pbAccView=null;renderPlaybooks()">&#8592; All Accounts</button>
+    <button class="btn btn-xs btn-r" onclick="resetAccountPB(${a.id})">Reset to Global</button>`;
+
+  const stageCards=STAGES.map(s=>{
+    const stagePB=apb[s.id];
+    const hasCustom=!!stagePB;
+    const isCurrent=a.stage===s.id;
+    const steps=hasCustom?stagePB.steps:(PLAYBOOKS.find(p=>p.stage===s.id)||{steps:[]}).steps;
+    return `
+    <div class="card card-p mb3" style="border-left:3px solid ${isCurrent?'var(--blue)':hasCustom?'var(--green)':'var(--bd)'}">
+      <div class="fx fxa fxb mb2">
+        <div class="fx fxa gap2">
+          <span class="fn fw6">${s.name}</span>
+          <span class="bx bx-n" style="font-size:9px">SLA: ${s.sla}d</span>
+          ${isCurrent?'<span class="bx bx-b" style="font-size:9px">Current Stage</span>':''}
+          ${hasCustom?'<span class="bx bx-g" style="font-size:9px">&#9998; Customized</span>':'<span class="bx bx-n" style="font-size:9px">Using global</span>'}
+        </div>
+        <button class="btn btn-xs btn-p" onclick="openAccountPBEditor(${a.id},'${s.id}')">&#9998; Edit for ${a.company}</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        ${steps.slice(0,4).map((st,i)=>`
+          <div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--bd);font-size:11px">
+            <span style="width:18px;height:18px;border-radius:50%;background:var(--bg3);color:var(--tx2);font-size:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</span>
+            <span class="tc-2 f1 trunc">${st.title}</span>
+            <span class="bx ${st.action==='CSM'?'bx-b':st.action==='Customer'?'bx-a':st.action==='Integration Team'?'bx-p':'bx-g'}" style="font-size:8px">${st.action}</span>
+          </div>`).join('')}
+        ${steps.length>4?`<div class="fx-xs tc-3 mt1">+${steps.length-4} more steps</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('pb').innerHTML=`
+  <div style="display:flex;gap:10px;align-items:center;padding:12px 16px;background:var(--bg2);border-radius:var(--r);margin-bottom:16px;border:1px solid var(--bd)">
+    <div class="f1">
+      <div class="fn fw6">${a.company}</div>
+      <div class="fx-xs tc-2">${a.jira} &middot; ${sn(a.stage)} &middot; ${badge(a.status)} &middot; Owner: ${a.owner||'—'}</div>
+    </div>
+    <button class="btn btn-p btn-sm" onclick="openAccountPBEditor(${a.id},'${a.stage}')">&#9998; Edit Current Stage Playbook</button>
+  </div>
+  ${stageCards}`;
+}
+
+function openAccountPBEditor(accountId,stageId){
+  const a=getA(accountId);if(!a)return;
+  const pb=getAccountStagePB(accountId,stageId);
+  openMO(`
+  <div class="mo-hd">
+    <div><div class="mo-hd-title">&#9998; ${a.company} — ${sn(stageId)} Playbook</div>
+      <div class="fx-xs tc-3">Customized for this account only. Global template unchanged.</div>
+    </div>
+    <button class="btn btn-sm" onclick="closeMO()">&#10005;</button>
+  </div>
+  <div class="mo-body" style="max-height:65vh;overflow-y:auto">
+    <div class="fg fg2 mb3">
+      <div class="fl" style="grid-column:span 2"><label>Custom Title (optional)</label>
+        <input id="apb-title" value="${pb.customTitle||''}" placeholder="Leave blank to use default"></div>
+      <div class="fl" style="grid-column:span 2"><label>Owner</label>
+        <input id="apb-owner" value="${pb.owner||''}" placeholder="Who is responsible for this stage?"></div>
+      <div class="fl" style="grid-column:span 2"><label>Notes / Special Instructions for this Account</label>
+        <textarea id="apb-notes" rows="2" placeholder="Any account-specific notes...">${pb.notes||''}</textarea></div>
+    </div>
+    <div class="fx fxa fxb mb2">
+      <span class="sec-title">Steps (${pb.steps.length})</span>
+      <button class="btn btn-xs btn-p" onclick="addAccountPBStep('${accountId}','${stageId}')">+ Add Step</button>
+    </div>
+    <div id="apb-steps">
+      ${pb.steps.map((s,i)=>`
+        <div style="display:flex;gap:8px;align-items:flex-start;padding:8px;background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);margin-bottom:6px">
+          <div style="width:20px;height:20px;border-radius:50%;background:var(--blue);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">${i+1}</div>
+          <div class="f1">
+            <input value="${s.title.replace(/"/g,'&quot;')}" id="apbs-t-${i}"
+              style="width:100%;background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r);padding:4px 8px;font-size:12px;color:var(--tx);margin-bottom:4px">
+            <textarea id="apbs-d-${i}" rows="2"
+              style="width:100%;background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r);padding:4px 8px;font-size:11px;color:var(--tx2);resize:vertical;font-family:var(--f)">${s.desc}</textarea>
+            <select id="apbs-a-${i}" style="background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r);padding:3px 7px;font-size:11px;color:var(--tx);margin-top:4px">
+              ${['CSM','Customer','Integration Team','Both','Manager','VP'].map(a=>`<option value="${a}" ${s.action===a?'selected':''}>${a}</option>`).join('')}
+            </select>
+          </div>
+          <button class="btn btn-xs btn-r" onclick="deleteAccountPBStep('${accountId}','${stageId}',${i})">&#10005;</button>
+        </div>`).join('')}
+    </div>
+    <div class="divider"></div>
+    <div class="fx fxa fxb mb2">
+      <span class="sec-title">Watch-Outs</span>
+      <button class="btn btn-xs btn-p" onclick="addAccountPBWO('${accountId}','${stageId}')">+ Add</button>
+    </div>
+    ${pb.watchouts.map((w,i)=>`
+      <div style="display:flex;gap:6px;margin-bottom:5px">
+        <input value="${w.replace(/"/g,'&quot;')}" id="apb-wo-${i}"
+          style="flex:1;background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:5px 8px;font-size:12px;color:var(--tx)">
+        <button class="btn btn-xs btn-r" onclick="deleteAccountPBWO('${accountId}','${stageId}',${i})">&#10005;</button>
+      </div>`).join('')}
+  </div>
+  <div class="mo-ft">
+    <button class="btn btn-p" onclick="saveAccountPB('${accountId}','${stageId}',${pb.steps.length},${pb.watchouts.length})">&#10003; Save</button>
+    <button class="btn btn-r" onclick="resetStagePB('${accountId}','${stageId}')">Reset Stage</button>
+    <button class="btn" onclick="closeMO()">Cancel</button>
+  </div>`);
+}
+
+function saveAccountPB(accountId,stageId,stepCount,woCount){
+  const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const pb=getAccountStagePB(accountId,stageId);
+  pb.customTitle=g('apb-title');
+  pb.owner=g('apb-owner');
+  pb.notes=g('apb-notes');
+  // Save steps
+  for(let i=0;i<stepCount;i++){
+    if(!pb.steps[i])break;
+    const t=g('apbs-t-'+i);const dEl=document.getElementById('apbs-d-'+i);const aEl=document.getElementById('apbs-a-'+i);
+    if(t)pb.steps[i].title=t;
+    if(dEl)pb.steps[i].desc=dEl.value.trim();
+    if(aEl)pb.steps[i].action=aEl.value;
+  }
+  // Save watchouts
+  for(let i=0;i<woCount;i++){
+    const v=g('apb-wo-'+i);if(v&&pb.watchouts[i]!==undefined)pb.watchouts[i]=v;
+  }
+  pb.watchouts=pb.watchouts.filter(Boolean);
+  closeMO();
+  const a=getA(accountId);toast('Playbook saved for '+a.company+' — '+sn(stageId));
+  if(pbMode==='account'&&pbAccView)renderPlaybooks();
+}
+
+function addAccountPBStep(accountId,stageId){
+  const pb=getAccountStagePB(accountId,stageId);
+  pb.steps.push({title:'New Step',desc:'',action:'CSM'});
+  openAccountPBEditor(accountId,stageId);
+}
+function deleteAccountPBStep(accountId,stageId,idx){
+  const pb=getAccountStagePB(accountId,stageId);
+  pb.steps.splice(idx,1);openAccountPBEditor(accountId,stageId);
+}
+function addAccountPBWO(accountId,stageId){
+  const pb=getAccountStagePB(accountId,stageId);
+  pb.watchouts.push('New watch-out');openAccountPBEditor(accountId,stageId);
+}
+function deleteAccountPBWO(accountId,stageId,idx){
+  const pb=getAccountStagePB(accountId,stageId);
+  pb.watchouts.splice(idx,1);openAccountPBEditor(accountId,stageId);
+}
+function resetStagePB(accountId,stageId){
+  const apb=getAccountPB(accountId);delete apb[stageId];
+  closeMO();toast('Stage playbook reset to global template');
+}
+function resetAccountPB(accountId){
+  if(!confirm('Reset all custom playbooks for this account to global templates?'))return;
+  delete accountPlaybooks[accountId];renderPlaybooks();toast('All playbooks reset to global');
+}
+
+function applyPlaybook(pbIdx){
+  const selEl=document.getElementById('pb-acc-sel');
+  if(!selEl){toast('Select an account from the dropdown above',false);return;}
+  const accId=parseInt(selEl.value);
+  if(!accId){toast('Select an account first',false);return;}
+  const a=getA(accId);const pb=PLAYBOOKS[pbIdx];
+  if(!a||!pb)return;
+  pb.steps.forEach((s,i)=>{
+    if(!a.points.find(p=>p.title.includes(s.title))){
+      a.points.push({id:uid(),title:`[${pb.icon}] Step ${i+1}: ${s.title}`,prio:i<2?'High':'Medium',owner:s.action==='Customer'?'Customer':a.owner||'CSM',age:0,blocker:false,status:'Open',notes:s.desc});
+    }
+  });
+  a.openPts=a.points.filter(p=>p.status!=='Resolved').length;
+  saveA(a);toast(`${pb.steps.length} steps added to ${a.company}`);
+}
+
+// ═══════════════════════════════════════════════════════
+// REPORTS MODULE
+// ═══════════════════════════════════════════════════════
+let reportType='weekly';
+function renderReports(){
+  document.getElementById('pt').textContent='Reports';
+  document.getElementById('ps').textContent='Auto-generated status reports, CEO dashboard, and export';
+  document.getElementById('ph-r').innerHTML=`<button class="btn btn-sm" onclick="printReport()">&#128438; Print / PDF</button>`;
+
+  const rtabs=[
+    {id:'weekly',label:'Weekly Status'},
+    {id:'ceo',label:'CEO Summary'},
+    {id:'account',label:'Account Report'},
+    {id:'customer',label:'Customer Report'},
+  ];
+  const tabHtml=rtabs.map(t=>`<div class="ptab ${reportType===t.id?'on':''}" onclick="reportType='${t.id}';renderReports()" style="padding:9px 14px">${t.label}</div>`).join('');
+
+  let body='';
+  if(reportType==='weekly') body=renderWeeklyReport();
+  else if(reportType==='ceo') body=renderCEOReport();
+  else if(reportType==='account') body=renderAccountReport();
+  else if(reportType==='customer') body=renderCustomerReport();
+
+  document.getElementById('pb').innerHTML=`
+  <div style="border-bottom:1px solid var(--bd);display:flex;margin:-18px -20px 18px;padding:0 20px">${tabHtml}</div>
+  ${body}`;
+}
+
+function renderWeeklyReport(){
+  const today=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  const red=accounts.filter(a=>a.status==='red');
+  const yel=accounts.filter(a=>a.status==='yellow');
+  const onTrack=accounts.filter(a=>a.status==='green');
+  const blockers=accounts.filter(a=>a.blocker);
+  const noMeet=accounts.filter(a=>!a.nextMeet);
+  const overSLA=accounts.filter(a=>a.daysInStage>sl(a.stage));
+
+  return `<div id="report-content" style="max-width:720px;margin:0 auto">
+  <div style="border:1px solid var(--bd);border-radius:var(--rl);overflow:hidden">
+    <div style="background:var(--blue);padding:20px 24px;color:#fff">
+      <div style="font-size:20px;font-weight:700;margin-bottom:4px">Weekly Implementation Status Report</div>
+      <div style="opacity:.8;font-size:13px">${today} &nbsp;|&nbsp; Prepared by CSM Team</div>
+    </div>
+    <div style="padding:20px 24px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+        ${[['Total Accounts',accounts.length,''],['Critical',red.length,'color:var(--red)'],['At Risk',yel.length,'color:var(--amber)'],['On Track',onTrack.length,'color:var(--green)']].map(([l,v,s])=>`
+          <div style="border:1px solid var(--bd);border-radius:var(--r);padding:12px;text-align:center">
+            <div style="font-size:24px;font-weight:700;font-family:var(--m);${s}">${v}</div>
+            <div style="font-size:11px;color:var(--tx3)">${l}</div>
+          </div>`).join('')}
+      </div>
+      ${red.length?`<div style="margin-bottom:16px"><div style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:8px">🔴 Critical Accounts (${red.length})</div>
+        ${red.map(a=>`<div style="display:flex;gap:8px;padding:7px 10px;background:var(--red-bg);border-radius:var(--r);margin-bottom:5px;border-left:3px solid var(--red)">
+          <div class="f1"><span class="fw5">${a.company}</span> <span class="fx-xs sc">${sn(a.stage)}</span></div>
+          <div class="fx-xs tc-2">${a.blocker||'High priority'}</div>
+        </div>`).join('')}</div>`:''}
+      ${blockers.length?`<div style="margin-bottom:16px"><div style="font-size:13px;font-weight:600;color:var(--amber);margin-bottom:8px">⚠️ Active Blockers (${blockers.length})</div>
+        ${blockers.map(a=>`<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd)">
+          <div class="f1 fn"><span class="fw5">${a.company}:</span> ${a.blocker}</div>
+          <span class="fx-xs tc-2">${a.owner||'--'}</span>
+        </div>`).join('')}</div>`:''}
+      <div style="margin-bottom:16px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">📊 Portfolio Overview</div>
+        <table style="width:100%;font-size:12px;border-collapse:collapse">
+          <thead><tr style="background:var(--bg2)">${['Account','Stage','Status','Progress','Go-Live','Owner'].map(h=>`<th style="padding:7px 10px;text-align:left;font-size:10px;color:var(--tx3);border-bottom:1px solid var(--bd);text-transform:uppercase;letter-spacing:.4px">${h}</th>`).join('')}</tr></thead>
+          <tbody>${accounts.map(a=>`<tr><td style="padding:7px 10px;border-bottom:1px solid var(--bd)"><span style="font-weight:500">${a.company}</span></td>
+            <td style="padding:7px 10px;border-bottom:1px solid var(--bd)"><span class="sc">${sn(a.stage)}</span></td>
+            <td style="padding:7px 10px;border-bottom:1px solid var(--bd)">${badge(a.status)}</td>
+            <td style="padding:7px 10px;border-bottom:1px solid var(--bd)"><span style="font-family:var(--m);font-size:11px">${a.prog}%</span></td>
+            <td style="padding:7px 10px;border-bottom:1px solid var(--bd);font-size:11px">${fmtD(a.expectedGL)}</td>
+            <td style="padding:7px 10px;border-bottom:1px solid var(--bd);font-size:11px">${a.owner||'--'}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+      <div style="background:var(--bg2);border-radius:var(--r);padding:12px;font-size:11px;color:var(--tx3)">
+        Generated automatically from OTB Implementation Tracker &nbsp;|&nbsp; ${today}
+      </div>
+    </div>
+  </div></div>`;
+}
+
+function renderCEOReport(){
+  const today=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  const avgH=Math.round(accounts.reduce((s,a)=>s+calcHealth(a),0)/accounts.length);
+  const gl30=accounts.filter(a=>a.expectedGL&&new Date(a.expectedGL)<=new Date(Date.now()+30*864e5)&&a.stage!=='stab');
+  const overSLA=accounts.filter(a=>a.daysInStage>sl(a.stage));
+  return `<div id="report-content" style="max-width:720px;margin:0 auto">
+  <div style="border:1px solid var(--bd);border-radius:var(--rl);overflow:hidden">
+    <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:24px;color:#fff">
+      <div style="font-size:22px;font-weight:700;margin-bottom:4px">Executive Implementation Summary</div>
+      <div style="opacity:.75;font-size:13px">${today} &nbsp;|&nbsp; Confidential</div>
+    </div>
+    <div style="padding:24px">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px">
+        ${[
+          ['Portfolio Health',avgH+'/100',avgH>=70?'var(--green)':avgH>=40?'var(--amber)':'var(--red)','Weighted avg across all accounts'],
+          ['Go-Lives This Month',gl30.length,'var(--blue)','Accounts going live in next 30 days'],
+          ['At Risk Revenue',accounts.filter(a=>a.status==='red').length+' accts','var(--red)','Critical accounts needing exec attention'],
+          ['SLA Breaches',overSLA.length,'var(--amber)','Accounts past their stage SLA'],
+          ['Blocked Accounts',accounts.filter(a=>a.blocker).length,'var(--red)','Active blockers impacting go-live'],
+          ['Stabilized',accounts.filter(a=>a.stage==='stab').length,'var(--green)','Successfully live and stable'],
+        ].map(([l,v,col,desc])=>`<div style="border:1px solid var(--bd);border-radius:var(--r);padding:14px">
+          <div style="font-size:22px;font-weight:700;color:${col};font-family:var(--m)">${v}</div>
+          <div style="font-weight:600;font-size:12px;margin:3px 0">${l}</div>
+          <div style="font-size:11px;color:var(--tx3)">${desc}</div>
+        </div>`).join('')}
+      </div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:10px">Key Actions Required</div>
+      ${accounts.filter(a=>a.status==='red'||a.daysInStage>sl(a.stage)).slice(0,5).map(a=>`
+        <div style="display:flex;gap:10px;padding:10px;border:1px solid ${a.status==='red'?'var(--red-bd)':'var(--amber-bd)'};border-radius:var(--r);background:${a.status==='red'?'var(--red-bg)':'var(--amber-bg)'};margin-bottom:8px">
+          <div class="f1">
+            <div class="fw6 fn">${a.company} (${sn(a.stage)})</div>
+            <div class="fx-s tc-2 mt1">${a.blocker||('Day '+a.daysInStage+' in stage, SLA: '+sl(a.stage)+'d')}</div>
+          </div>
+          <div class="fx-xs tc-2">Owner: ${a.owner||'--'}</div>
+        </div>`).join('')}
+      <div style="background:var(--bg2);border-radius:var(--r);padding:12px;font-size:11px;color:var(--tx3);margin-top:16px">
+        OTB Implementation Tracker &nbsp;|&nbsp; ${today} &nbsp;|&nbsp; For internal use only
+      </div>
+    </div>
+  </div></div>`;
+}
+
+function renderAccountReport(){
+  const acOpts=accounts.map(a=>`<option value="${a.id}">${a.company}</option>`).join('');
+  const selId=parseInt(document.getElementById('rpt-acc-sel')?.value||accounts[0]?.id);
+  const a=getA(selId)||accounts[0];
+  if(!a)return'<div class="fn tc-3">No accounts available</div>';
+  const si=SIDX[a.stage]??0;
+  const lc=STAGES.map((s,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--bd)">
+    <div style="width:18px;height:18px;border-radius:50%;background:${i<si?'var(--green)':i===si?'var(--blue)':'var(--bg3)'};color:${i<=si?'#fff':'var(--tx3)'};font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i<si?'&#10003;':i+1}</div>
+    <div class="fn f1" style="color:${i<si?'var(--tx3)':i===si?'var(--blue)':'var(--tx)'}">${s.name}</div>
+    <div class="fx-xs tc-3">${i<si?'Done':i===si?`Day ${a.daysInStage}/${s.sla}d`:''}</div>
+  </div>`).join('');
+  return `
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+    <span class="fn fw5">Account:</span>
+    <select id="rpt-acc-sel" class="fi" onchange="renderReports()">${acOpts}</select>
+  </div>
+  <div id="report-content" style="max-width:720px">
+  <div style="border:1px solid var(--bd);border-radius:var(--rl);overflow:hidden">
+    <div style="background:var(--blue);padding:18px 22px;color:#fff">
+      <div style="font-size:18px;font-weight:700">${a.company} — Implementation Status</div>
+      <div style="opacity:.8;font-size:12px;margin-top:3px">${a.jira} &nbsp;|&nbsp; ${sn(a.stage)} &nbsp;|&nbsp; ${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</div>
+    </div>
+    <div style="padding:18px 22px">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+        ${[['Status',badge(a.status),''],['Progress',a.prog+'%',''],['Go-Live',fmtD(a.expectedGL),''],['Owner',a.owner||'--',''],['Health',calcHealth(a)+'/100',''],['Audit',a.auditSt,'']].map(([l,v])=>`<div style="border:1px solid var(--bd);border-radius:var(--r);padding:10px"><div class="fx-xs tc-3">${l}</div><div class="fn fw5 mt1">${v}</div></div>`).join('')}
+      </div>
+      ${a.blocker?`<div style="background:var(--red-bg);border:1px solid var(--red-bd);border-radius:var(--r);padding:10px;margin-bottom:14px"><div class="fn fw6 t-r">Active Blocker</div><div class="fn tc-2 mt1">${a.blocker}</div></div>`:''}
+      <div class="fn fw6 mb2">Lifecycle Progress</div>
+      ${lc}
+      ${a.meetings.length?`<div class="fn fw6 mt3 mb2">Recent Meetings</div>${a.meetings.slice(0,3).map(m=>`<div style="padding:7px 0;border-bottom:1px solid var(--bd)"><div class="fw5 fn">${fmtD(m.date)} — ${m.title}</div><div class="fx-s tc-2 mt1">${m.notes}</div></div>`).join('')}`:''}
+    </div>
+  </div></div>`;
+}
+
+function renderCustomerReport(){
+  const acOpts=accounts.map(a=>`<option value="${a.id}">${a.company}</option>`).join('');
+  const selId=parseInt(document.getElementById('cust-acc-sel')?.value||accounts[0]?.id);
+  const a=getA(selId)||accounts[0];
+  if(!a)return'<div class="fn tc-3">No accounts</div>';
+  const si=SIDX[a.stage]??0;
+  const checksDone=(a.checks||[]).filter(Boolean).length;
+  return `
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <span class="fn fw5">Account:</span>
+    <select id="cust-acc-sel" class="fi" onchange="renderReports()">${acOpts}</select>
+    <button class="btn btn-p btn-sm" onclick="printReport()">Send to Customer (Print/PDF)</button>
+  </div>
+  <div id="report-content" style="max-width:680px;font-family:Arial,sans-serif">
+  <div style="border:2px solid #e2e8f0;border-radius:12px;overflow:hidden">
+    <div style="background:#1e40af;padding:22px 26px;color:#fff">
+      <div style="font-size:20px;font-weight:700;margin-bottom:2px">Implementation Update</div>
+      <div style="opacity:.8;font-size:13px">${a.company} &nbsp;&bull;&nbsp; ${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</div>
+    </div>
+    <div style="padding:22px 26px;background:#fff">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:20px;font-weight:700;color:#1e40af">${a.prog}%</div>
+          <div style="font-size:11px;color:#64748b">Progress</div>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:13px;font-weight:600;color:${a.status==='green'?'#16a34a':a.status==='yellow'?'#d97706':'#dc2626'}">${a.status==='green'?'On Track':a.status==='yellow'?'At Risk':'Needs Attention'}</div>
+          <div style="font-size:11px;color:#64748b">Status</div>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:13px;font-weight:600;color:#1e40af">${fmtD(a.expectedGL)}</div>
+          <div style="font-size:11px;color:#64748b">Target Go-Live</div>
+        </div>
+      </div>
+      <div style="font-weight:600;margin-bottom:8px;font-size:14px">Current Stage: ${sn(a.stage)}</div>
+      <div style="margin-bottom:4px;color:#475569;font-size:13px">You are currently in <strong>${sn(a.stage)}</strong>. This stage has a ${sl(a.stage)}-day target.</div>
+      <div style="background:#f1f5f9;border-radius:6px;height:8px;margin:10px 0 16px;overflow:hidden">
+        <div style="height:100%;width:${a.prog}%;background:#2563eb;border-radius:6px"></div>
+      </div>
+      ${a.blocker?`<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px;margin-bottom:16px"><div style="font-weight:600;color:#dc2626;margin-bottom:4px">Action Required</div><div style="color:#7f1d1d;font-size:13px">${a.blocker}</div></div>`:''}
+      <div style="font-weight:600;margin-bottom:8px;font-size:14px">Your Action Items</div>
+      ${(a.points||[]).filter(p=>p.status!=='Resolved'&&p.owner&&p.owner.toLowerCase().includes('customer')).map(p=>`<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid #e2e8f0;font-size:12px"><span style="color:#dc2626">▸</span><span style="color:#374151">${p.title}</span></div>`).join('')||'<div style="color:#94a3b8;font-size:12px;margin-bottom:12px">No pending items from your side</div>'}
+      <div style="font-weight:600;margin:14px 0 8px;font-size:14px">Audit Checklist</div>
+      ${CHECKLIST.map((item,i)=>`<div style="display:flex;gap:8px;padding:5px 0;font-size:12px;border-bottom:1px solid #f1f5f9"><span style="color:${(a.checks||[])[i]?'#16a34a':'#cbd5e1'}">${(a.checks||[])[i]?'✓':'○'}</span><span style="color:${(a.checks||[])[i]?'#374151':'#94a3b8'};${(a.checks||[])[i]?'':'opacity:.7'}">${item}</span></div>`).join('')}
+      <div style="margin-top:20px;padding:12px;background:#f8fafc;border-radius:8px;font-size:11px;color:#94a3b8">
+        Questions? Contact ${a.owner||'your CSM'} &nbsp;|&nbsp; Next meeting: ${a.nextMeet?fmtD(a.nextMeet):'To be scheduled'}
+      </div>
+    </div>
+  </div></div>`;
+}
+
+function printReport(){
+  const rc=document.getElementById('report-content');
+  if(!rc){toast('No report loaded — open a report tab first',false);return;}
+  const html='<html><head><title>Report</title><style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;padding:24px;background:#fff;color:#111;font-size:13px;line-height:1.5}.bx,.sc{display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:10px;font-weight:600}table{width:100%;border-collapse:collapse}th,td{padding:6px 10px;border:1px solid #e2e8f0;text-align:left;font-size:12px}th{background:#f8fafc}@media print{body{padding:0}}</style></head><body>'+rc.innerHTML+'</body></html>';
+  const win=window.open('','_blank','width=900,height=700');
+  if(!win){
+    // Popup blocked — fallback: open as data URI
+    const blob=new Blob([html],{type:'text/html'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.target='_blank';a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+    toast('Opened in new tab (allow popups for direct print)');
+    return;
+  }
+  try{
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(()=>{try{win.print();}catch(e){toast('Use Ctrl+P to print',false);}},600);
+  }catch(e){
+    toast('Could not open print window — check popup settings',false);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+render();
+</script>
+</body>
+</html>
