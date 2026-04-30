@@ -958,6 +958,40 @@ function saveEscalationSettings(){
   toast('Escalation settings saved');
 }
 
+async function saveJiraCfg(){
+  const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const url=g('j-url').replace(/\/+$/,'');
+  const proj=g('j-proj');
+  const email=g('j-email');
+  const token=g('j-tok');
+  if(!url||!email||!token){toast('Jira URL, email and API token are all required',false);return;}
+  integCfg.jira.url=url;
+  integCfg.jira.project=proj||'OTB';
+  integCfg.jira.email=email;
+  integCfg.jira.token=token;
+  integCfg.jira.connected=true;
+  // Save to Supabase integrations table
+  await saveIntegrationToDB('jira',{
+    url:integCfg.jira.url,
+    project:integCfg.jira.project,
+    email:integCfg.jira.email,
+    token:integCfg.jira.token,
+    connected:true,
+    escalationDays:integCfg.jira.escalationDays||7,
+    autoEscalate:integCfg.jira.autoEscalate||false,
+  });
+  toast('Jira credentials saved — testing connection...');
+  // Auto-fetch issues to confirm connection works
+  try{
+    const issues=await fetchJiraIssues();
+    integCfg.jira.jiraIssues=issues;
+    toast('Connected! '+issues.length+' issues fetched from Jira');
+  }catch(e){
+    toast('Credentials saved but Jira fetch failed: '+e.message,false);
+  }
+  renderSettings();
+}
+
 function renderJiraSettings(){
   const cfg=integCfg.jira;
   const issueRows=(cfg.jiraIssues||[]).slice(0,15).map(function(iss){
@@ -3018,9 +3052,9 @@ async function sbAPI(method, table, params = {}, body = null) {
 
   const headers = {
     'apikey':        SB_KEY,
-    'Authorization': `Bearer ${SB_KEY}`,
+    'Authorization': 'Bearer '+SB_KEY,
     'Content-Type':  'application/json',
-    'Prefer':        method === 'POST' ? 'return=representation' : 'return=representation',
+    'Prefer':        'return=representation',
   };
 
   // For upsert (POST with conflict resolution)
@@ -3518,6 +3552,8 @@ function subscribeRealtime() {
   dbSyncInterval = setInterval(async () => {
     if (DB_MODE !== 'live') return;
     try {
+      // Only poll if we have a valid key
+      if(!SB_KEY||SB_KEY==='YOUR_SUPABASE_ANON_KEY') return;
       const accs = await sbAPI('GET', 'accounts', { order: 'company' });
       if (accs) {
         const remapped = accs.map(mapFromDB);
