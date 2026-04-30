@@ -817,139 +817,214 @@ function renderSettings(){
 }
 
 // ── JIRA SETTINGS ──
-function renderJiraSettings(){
+// ── JIRA API HELPER ──────────────────────────────────
+async function jiraAPI(method,path,body=null){
   const cfg=integCfg.jira;
-  const openPtsList=accounts.filter(a=>a.openPts>0).map(a=>`
-    <tr>
-      <td class="fn fw5">${a.company}</td><td><span class="sc">${sn(a.stage)}</span></td>
-      <td style="color:var(--amber)">${a.openPts} open</td>
-      <td><button class="btn btn-xs btn-p" onclick="exportToJira(${a.id})">Push to Jira</button></td>
-    </tr>`).join('');
-  return `
-  <div class="sec-title mb3">Jira Configuration</div>
-  <div class="fg fg2 mb4">
-    <div class="fl"><label>Jira URL</label><input id="j-url" value="${cfg.url}" placeholder="https://yourcompany.atlassian.net"></div>
-    <div class="fl"><label>Project Key</label><input id="j-proj" value="${cfg.project}" placeholder="OTB"></div>
-    <div class="fl" style="grid-column:span 2"><label>API Token</label><input id="j-tok" type="password" value="${cfg.token}" placeholder="Your Jira API token"></div>
-  </div>
-  <div class="fx gap2 mb4">
-    <button class="btn btn-p" onclick="saveJiraCfg()">Save & Connect</button>
-    ${cfg.connected?'<span class="bx bx-g">Connected</span>':'<span class="bx bx-n">Not connected</span>'}
-  </div>
-  <div class="divider"></div>
-  <div class="fx fxa fxb mb3">
-    <span class="sec-title">Import / Export</span>
-    <div class="fx gap2">
-      <button class="btn btn-sm btn-p" onclick="document.getElementById(\'jira-file-in\').click()">&#8593; Import CSV</button>
-      <button class="btn btn-sm" onclick="exportAllJira()">&#8595; Export CSV</button>
-      <input type="file" id="jira-file-in" accept=".csv" style="display:none" onchange="importJiraCSV(this)">
-    </div>
-  </div>
-  <div class="fx-xs tc-3 mb3">Import your Jira CSV export directly — all accounts, stages, and open points will be mapped automatically.</div>
-  <div class="divider"></div>
-  <div class="sec-title mb3">Open Points — Push to Jira</div>
-  ${accounts.filter(a=>a.openPts>0).length?`
-  <div class="tw"><table>
-    <thead><tr><th>Account</th><th>Stage</th><th>Open Points</th><th>Action</th></tr></thead>
-    <tbody>${openPtsList}</tbody>
-  </table></div>`:'<div class="fx-s tc-3">No open points across any accounts</div>'}
-  <div class="divider"></div>
-  <div class="sec-title mb2">Webhook — Auto Escalation</div>
-  <div class="fx-s tc-2 mb3">Blockers exceeding 7 days automatically escalate in Jira (priority raised to Critical, PM notified).</div>
-  <div class="fg fg2">
-    <div class="fl"><label>Webhook URL</label><input id="j-wh" placeholder="https://yourjira/webhook/..."></div>
-    <div class="fl"><label>Escalation after (days)</label><input id="j-esc" type="number" value="7"></div>
-  </div>
-  <div class="mt3"><button class="btn btn-sm" onclick="toast('Webhook saved')">Save Webhook</button></div>`;
+  if(!cfg.url||!cfg.token) throw new Error('Jira not configured. Add URL, email and API token.');
+  const base=cfg.url.replace(/\/+$/,'');
+  const proxyUrl='https://corsproxy.io/?'+encodeURIComponent(base+'/rest/api/3'+path);
+  const headers={
+    'Content-Type':'application/json',
+    'Accept':'application/json',
+    'Authorization':'Basic '+btoa((cfg.email||'')+':'+cfg.token),
+  };
+  const opts={method,headers};
+  if(body) opts.body=JSON.stringify(body);
+  const res=await fetch(proxyUrl,opts);
+  if(!res.ok){
+    const err=await res.json().catch(()=>({errorMessages:[res.statusText]}));
+    throw new Error(((err.errorMessages||[])[0]||err.message||'Jira API error')+' ('+res.status+')');
+  }
+  return res.status===204?null:res.json();
 }
 
-async function saveJiraCfg(){
-  const _gj=id=>{const el=document.getElementById(id);return el?el.value:'';};
-  integCfg.jira.url=_gj('j-url');
-  integCfg.jira.project=_gj('j-proj');
-  integCfg.jira.token=_gj('j-tok');
-  if(!integCfg.jira.url||!integCfg.jira.token){toast('Fill in URL and token',false);return;}
-  integCfg.jira.connected=true;
-  await saveIntegrationToDB('jira',{
-    url:integCfg.jira.url,
-    project:integCfg.jira.project,
-    token:integCfg.jira.token,
-    connected:true
+async function fetchJiraIssues(){
+  const cfg=integCfg.jira;
+  if(!cfg.project) throw new Error('Set Jira project key first');
+  const jql='project='+cfg.project+' ORDER BY created DESC';
+  const data=await jiraAPI('GET','/search?jql='+encodeURIComponent(jql)+'&maxResults=100&fields=summary,status,assignee,priority,duedate,description,labels');
+  return data.issues||[];
+}
+
+async function createJiraIssue(summary,description,priority,accountName){
+  const cfg=integCfg.jira;
+  return jiraAPI('POST','/issue',{
+    fields:{
+      project:{key:cfg.project||'OTB'},
+      summary:summary,
+      description:{type:'doc',version:1,content:[{type:'paragraph',content:[{type:'text',text:description||summary}]}]},
+      issuetype:{name:'Task'},
+      priority:{name:priority||'Medium'},
+      labels:accountName?[accountName.replace(/\s+/g,'-')]:[],
+    }
   });
-  toast('Jira credentials saved to database');
+}
+
+async function escalateJiraIssue(issueKey,reason){
+  await jiraAPI('PUT','/issue/'+issueKey,{fields:{priority:{name:'Critical'},labels:['escalated','blocker']}});
+  await jiraAPI('POST','/issue/'+issueKey+'/comment',{
+    body:{type:'doc',version:1,content:[{type:'paragraph',content:[{type:'text',text:'AUTO-ESCALATED: '+reason}]}]}
+  });
+}
+
+async function addJiraComment(issueKey,comment){
+  try{
+    await jiraAPI('POST','/issue/'+issueKey+'/comment',{
+      body:{type:'doc',version:1,content:[{type:'paragraph',content:[{type:'text',text:comment}]}]}
+    });
+    toast('Comment added to '+issueKey);
+  }catch(e){toast('Failed: '+e.message,false);}
+}
+
+async function pushOpenPointsToJira(accountId){
+  const a=getA(accountId);if(!a)return;
+  const pts=a.points.filter(p=>p.status!=='Resolved');
+  if(!pts.length){toast('No open points to push',false);return;}
+  if(!integCfg.jira.connected){toast('Configure Jira credentials first',false);return;}
+  toast('Creating '+pts.length+' Jira issue(s)...');
+  let ok=0,fail=0;
+  for(const p of pts){
+    try{
+      const desc='Account: '+a.company+'\nStage: '+sn(a.stage)+'\nOwner: '+(p.owner||'Unassigned')+'\nAge: '+p.age+' days\nBlocker: '+(p.blocker?'YES':'No')+'\n\n'+(p.notes||'');
+      const issue=await createJiraIssue('['+a.company+'] '+p.title,desc,p.prio==='High'?'High':p.prio==='Medium'?'Medium':'Low',a.company);
+      if(issue){p.jiraKey=issue.key;ok++;}
+    }catch(e){console.error('Create error:',e.message);fail++;}
+  }
+  saveA(a);
+  toast(ok?ok+' issue(s) created in Jira'+(fail?' ('+fail+' failed)':''):'Failed to create issues',ok>0);
   renderSettings();
 }
 
-function importJiraCSV(input){
-  const file=input.files[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=function(e){
-    const lines=e.target.result.split('\n');
-    if(lines.length<2){toast('CSV appears empty',false);return;}
-    const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase());
-    let imported=0;
-    for(let i=1;i<lines.length;i++){
-      if(!lines[i].trim())continue;
-      // Parse CSV row handling quoted fields
-      const row=parseCSVRow(lines[i]);
-      if(row.length<2)continue;
-      const get=(names)=>{for(const n of names){const idx=headers.findIndex(h=>h.includes(n));if(idx>=0&&row[idx])return row[idx].trim();}return '';};
-      const company=get(['summary','company name','company']);
-      if(!company)continue;
-      const jiraKey=get(['issue key','key','id','jira']);
-      const statusRaw=get(['status']).toLowerCase();
-      const stageMap={'sales hand':0,'handover':0,'discovery':1,'integr':2,'config':3,'training':4,'onsite':5,'golive':6,'go-live':6,'live':6,'already live':6,'audit':7,'stab':8,'done':8,'stabiliz':8};
-      let stage='discovery';
-      for(const[k,v] of Object.entries(stageMap)){if(statusRaw.includes(k)){stage=STAGES[v].id;break;}}
-      const existing=accounts.find(a=>a.jira===jiraKey||a.company.toLowerCase()===company.toLowerCase());
-      if(existing){
-        existing.stage=stage;
-        existing.jira=jiraKey||existing.jira;
-        const d=get(['due date','expected','go-live date']);
-        if(d)existing.expectedGL=d;
-        saveA(existing);imported++;
-      } else {
-        const newA={id:uid(),jira:jiraKey||`IMP-${nextId}`,company,region:get(['region'])||'Global',
-          stage,status:'yellow',mrr:get(['mrr'])||'Not Set',prog:STAGES[SIDX[stage]?SIDX[stage]:0]?[8,18,38,52,65,78,88,95,100][SIDX[stage]||0]:20,
-          daysInStage:parseInt(get(['days']))||0,nextMile:get(['milestone','summary'])||'',
-          blocker:get(['blocker','pending reason','block'])||'',owner:get(['assignee','owner'])||'',
-          plannedGL:get(['planned','due'])||'',expectedGL:get(['expected','customer eta','due'])||'',
-          lastAct:new Date().toISOString().slice(0,10),nextMeet:'',openPts:0,auditSt:'Not Started',
-          priority:get(['priority'])||'Medium',notes:'',meetings:[],points:[],checks:[false,false,false,false,false]};
-        accounts.push(newA);imported++;
+async function syncFromJira(){
+  if(!integCfg.jira.connected){toast('Configure Jira first',false);return;}
+  const btn=document.getElementById('jira-sync-btn');
+  if(btn){btn.textContent='Syncing...';btn.disabled=true;}
+  try{
+    const issues=await fetchJiraIssues();
+    integCfg.jira.jiraIssues=issues;
+    let updated=0;
+    issues.forEach(issue=>{
+      const a=accounts.find(ac=>ac.jira===issue.key);
+      if(a){
+        const st=(issue.fields&&issue.fields.status&&issue.fields.status.name||'').toLowerCase();
+        if(st.includes('done')||st.includes('closed')) a.status='green';
+        else if(st.includes('progress')) a.status='yellow';
+        (a.points||[]).forEach(p=>{
+          if(p.title&&issue.fields&&issue.fields.summary&&issue.fields.summary.includes(p.title.slice(0,20))){
+            p.jiraKey=issue.key;
+            if(st.includes('done')) p.status='Resolved';
+          }
+        });
+        a.openPts=(a.points||[]).filter(p=>p.status!=='Resolved').length;
+        saveA(a);updated++;
       }
-    }
-    input.value='';renderSettings();toast(`Imported ${imported} accounts from Jira CSV`);
-  };
-  reader.readAsText(file);
-}
-
-function parseCSVRow(line){
-  const result=[];let cur='',inQ=false;
-  for(let i=0;i<line.length;i++){
-    if(line[i]==='"'){inQ=!inQ;}
-    else if(line[i]===','&&!inQ){result.push(cur);cur='';}
-    else cur+=line[i];
+    });
+    toast('Synced '+issues.length+' issues. '+updated+' accounts updated.');
+    renderSettings();
+  }catch(e){
+    toast('Sync failed: '+e.message,false);
   }
-  result.push(cur);
-  return result.map(v=>v.replace(/^"|"$/g,'').trim());
+  if(btn){btn.textContent='Sync from Jira';btn.disabled=false;}
 }
 
-function exportAllJira(){
-  const headers=['Jira Key','Company','Region','Stage','Status','MRR','Progress %','Planned Go-Live','Expected Go-Live','Days in Stage','Blocker','Owner','Open Points','Audit Status','Last Activity','Next Meeting','Next Milestone','Priority'];
-  const rows=accounts.map(a=>[a.jira,a.company,a.region,sn(a.stage),a.status==='green'?'On Track':a.status==='yellow'?'At Risk':'Critical',a.mrr,a.prog,a.plannedGL||'',a.expectedGL||'',a.daysInStage,a.blocker||'',a.owner||'',a.openPts,a.auditSt,a.lastAct||'',a.nextMeet||'',a.nextMile||'',a.priority].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
-  const csv=[headers.join(','),...rows].join('\n');
-  const b=new Blob([csv],{type:'text/csv'});const u=URL.createObjectURL(b);
-  const a=document.createElement('a');a.href=u;a.download=`OTB_Export_${new Date().toISOString().slice(0,10)}.csv`;a.click();
-  URL.revokeObjectURL(u);toast('CSV exported');
+async function testJiraConnection(){
+  try{
+    const data=await jiraAPI('GET','/project/'+integCfg.jira.project);
+    toast('Connected! Project: '+(data.name||integCfg.jira.project));
+  }catch(e){
+    toast('Connection failed: '+e.message,false);
+  }
 }
 
-function exportToJira(accountId){
-  const a=getA(accountId);if(!a)return;
-  const points=a.points.filter(p=>p.status!=='Resolved');
-  if(!points.length){toast('No open points to push',false);return;}
-  toast(`${points.length} point(s) from ${a.company} pushed to Jira`);
+async function autoEscalateBlockers(){
+  if(!integCfg.jira.connected) return;
+  const threshold=parseInt(integCfg.jira.escalationDays)||7;
+  const toEsc=accounts.filter(a=>a.blocker&&a.daysInStage>threshold);
+  for(const a of toEsc){
+    const pts=(a.points||[]).filter(p=>p.blocker&&p.status!=='Resolved'&&p.jiraKey);
+    for(const p of pts){
+      try{await escalateJiraIssue(p.jiraKey,'Blocker active '+a.daysInStage+' days. Account: '+a.company+'. '+a.blocker);}
+      catch(e){console.warn('Escalation:',e.message);}
+    }
+  }
 }
+
+function saveEscalationSettings(){
+  const escEl=document.getElementById('j-esc');
+  const autoEl=document.getElementById('j-auto-esc');
+  if(escEl) integCfg.jira.escalationDays=parseInt(escEl.value)||7;
+  if(autoEl) integCfg.jira.autoEscalate=autoEl.value==='1';
+  saveIntegrationToDB('jira',integCfg.jira);
+  toast('Escalation settings saved');
+}
+
+function renderJiraSettings(){
+  const cfg=integCfg.jira;
+  const issueRows=(cfg.jiraIssues||[]).slice(0,15).map(function(iss){
+    const pr=(iss.fields&&iss.fields.priority&&iss.fields.priority.name)||'Medium';
+    const st=(iss.fields&&iss.fields.status&&iss.fields.status.name)||'Open';
+    const as=(iss.fields&&iss.fields.assignee&&iss.fields.assignee.displayName)||'Unassigned';
+    const pc=pr==='Critical'||pr==='High'?'bx-r':pr==='Medium'?'bx-a':'bx-n';
+    const sc=st.toLowerCase().includes('done')?'bx-g':st.toLowerCase().includes('progress')?'bx-b':'bx-n';
+    return '<tr><td class="mono" style="color:var(--blue);font-size:11px">'+iss.key+'</td>'
+      +'<td class="fx-s">'+(iss.fields&&iss.fields.summary||'').slice(0,45)+'</td>'
+      +'<td><span class="bx '+pc+'" style="font-size:9px">'+pr+'</span></td>'
+      +'<td><span class="bx '+sc+'" style="font-size:9px">'+st+'</span></td>'
+      +'<td class="fx-xs tc-2">'+as+'</td>'
+      +'<td><button class="btn btn-xs" onclick="addJiraComment(\''+iss.key+'\',\'Updated from OTB Tracker\')">Comment</button></td></tr>';
+  }).join('');
+
+  const openPtsList=accounts.filter(function(a){return a.openPts>0;}).map(function(a){
+    return '<tr><td class="fn fw5">'+a.company+'</td><td><span class="sc">'+sn(a.stage)+'</span></td>'
+      +'<td style="color:var(--amber)">'+a.openPts+' open</td>'
+      +'<td><button class="btn btn-xs btn-p" onclick="pushOpenPointsToJira('+a.id+')">Push to Jira</button></td></tr>';
+  }).join('');
+
+  return '<div class="sec-title mb3">Jira Configuration</div>'
+    +'<div class="fg fg2 mb3">'
+    +'<div class="fl"><label>Jira URL</label><input id="j-url" value="'+(cfg.url||'')+'" placeholder="https://yourcompany.atlassian.net"></div>'
+    +'<div class="fl"><label>Project Key</label><input id="j-proj" value="'+(cfg.project||'')+'" placeholder="OTB"></div>'
+    +'<div class="fl"><label>Email (Jira account email)</label><input id="j-email" value="'+(cfg.email||'')+'" placeholder="you@company.com"></div>'
+    +'<div class="fl"><label>API Token</label><input id="j-tok" type="password" value="'+(cfg.token||'')+'" placeholder="Your Jira API token"></div>'
+    +'</div>'
+    +'<div class="fx gap2 mb2">'
+    +'<button class="btn btn-p" onclick="saveJiraCfg()">Save &amp; Connect</button>'
+    +'<button class="btn btn-sm" id="jira-sync-btn" onclick="syncFromJira()" '+(cfg.connected?'':'disabled')+'>Sync from Jira</button>'
+    +'<button class="btn btn-sm btn-g" onclick="testJiraConnection()" '+(cfg.connected?'':'disabled')+'>Test Connection</button>'
+    +(cfg.connected?'<span class="bx bx-g">&#10003; Connected</span>':'<span class="bx bx-n">Not connected</span>')
+    +'</div>'
+    +'<div class="fx-xs tc-3 mb3">Get API token: <strong>id.atlassian.com &rarr; Security &rarr; API tokens &rarr; Create</strong></div>'
+    +'<div class="divider"></div>'
+    +(cfg.connected&&(cfg.jiraIssues||[]).length
+      ?'<div class="sec-title mb2">Live Issues from Jira ('+((cfg.jiraIssues||[]).length)+')</div>'
+       +'<div class="tw mb3"><table><thead><tr><th>Key</th><th>Summary</th><th>Priority</th><th>Status</th><th>Assignee</th><th>Action</th></tr></thead><tbody>'+issueRows+'</tbody></table></div>'
+       +'<div class="divider"></div>'
+      :'')
+    +'<div class="fx fxa fxb mb2"><span class="sec-title">Import / Export</span>'
+    +'<div class="fx gap2">'
+    +'<button class="btn btn-sm btn-p" onclick="document.getElementById(\'jira-file-in\').click()">&#8593; Import CSV</button>'
+    +'<button class="btn btn-sm" onclick="exportAllJira()">&#8595; Export CSV</button>'
+    +'<input type="file" id="jira-file-in" accept=".csv" style="display:none" onchange="importJiraCSV(this)">'
+    +'</div></div>'
+    +'<div class="fx-xs tc-3 mb3">Import your Jira CSV &mdash; stages, owners, blockers mapped automatically.</div>'
+    +'<div class="divider"></div>'
+    +'<div class="sec-title mb3">Open Points &mdash; Push to Jira</div>'
+    +(accounts.filter(function(a){return a.openPts>0;}).length
+      ?'<div class="tw mb3"><table><thead><tr><th>Account</th><th>Stage</th><th>Open Points</th><th>Action</th></tr></thead><tbody>'+openPtsList+'</tbody></table></div>'
+      :'<div class="fx-s tc-3 mb3">No open points across any accounts</div>')
+    +'<div class="divider"></div>'
+    +'<div class="sec-title mb2">Auto Escalation</div>'
+    +'<div class="fx-s tc-2 mb3">Blockers exceeding threshold auto-escalate to Critical priority in Jira.</div>'
+    +'<div class="fg fg2 mb3">'
+    +'<div class="fl"><label>Escalate after (days)</label><input id="j-esc" type="number" value="'+(cfg.escalationDays||7)+'" min="1" max="30"></div>'
+    +'<div class="fl"><label>Auto-escalation</label>'
+    +'<select id="j-auto-esc" style="background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:7px 10px;font-size:12px;color:var(--tx)">'
+    +'<option value="1" '+(cfg.autoEscalate?'selected':'')+'>Enabled</option>'
+    +'<option value="0" '+(!cfg.autoEscalate?'selected':'')+'>Disabled</option>'
+    +'</select></div></div>'
+    +'<button class="btn btn-sm" onclick="saveEscalationSettings()">Save Escalation Settings</button>';
+}
+
 
 // ── WHATSAPP SETTINGS ──
 function renderWASettings(){
@@ -3463,6 +3538,10 @@ function subscribeRealtime() {
         render();
       }
     } catch(e) { console.warn('Poll error:', e.message); }
+    // Auto-escalate overdue blockers via Jira API
+    if(integCfg.jira.connected&&integCfg.jira.autoEscalate){
+      autoEscalateBlockers().catch(e=>console.warn('Auto-escalation error:',e.message));
+    }
   }, 30000);
 }
 
