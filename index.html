@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OTB Implementation Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -864,13 +863,20 @@ function renderJiraSettings(){
   <div class="mt3"><button class="btn btn-sm" onclick="toast('Webhook saved')">Save Webhook</button></div>`;
 }
 
-function saveJiraCfg(){
+async function saveJiraCfg(){
   const _gj=id=>{const el=document.getElementById(id);return el?el.value:'';};
   integCfg.jira.url=_gj('j-url');
   integCfg.jira.project=_gj('j-proj');
   integCfg.jira.token=_gj('j-tok');
-  if(integCfg.jira.url&&integCfg.jira.token){integCfg.jira.connected=true;toast('Jira connected');}
-  else toast('Fill in URL and token',false);
+  if(!integCfg.jira.url||!integCfg.jira.token){toast('Fill in URL and token',false);return;}
+  integCfg.jira.connected=true;
+  await saveIntegrationToDB('jira',{
+    url:integCfg.jira.url,
+    project:integCfg.jira.project,
+    token:integCfg.jira.token,
+    connected:true
+  });
+  toast('Jira credentials saved to database');
   renderSettings();
 }
 
@@ -1115,15 +1121,24 @@ function renderEmailSettings(){
   </table></div>`:'<div class="fx-s tc-3">No emails sent yet</div>'}`;
 }
 
-function saveEmailCfg(){
+async function saveEmailCfg(){
   const _g=id=>{const el=document.getElementById(id);return el?el.value:'';};
   integCfg.email.smtp=_g('em-srv');
   integCfg.email.port=_g('em-port');
   integCfg.email.user=_g('em-usr');
   integCfg.email.pass=_g('em-pw');
   integCfg.email.from=_g('em-from');
-  if(integCfg.email.smtp&&integCfg.email.user){integCfg.email.connected=true;toast('Email configured. Test message sent.');}
-  else toast('Fill in SMTP server and username',false);
+  if(!integCfg.email.smtp||!integCfg.email.user){toast('Fill in SMTP server and username',false);return;}
+  integCfg.email.connected=true;
+  await saveIntegrationToDB('email',{
+    smtp:integCfg.email.smtp,
+    port:integCfg.email.port,
+    user:integCfg.email.user,
+    pass:integCfg.email.pass,
+    from:integCfg.email.from,
+    connected:true
+  });
+  toast('Email credentials saved to database');
   renderSettings();
 }
 
@@ -1199,13 +1214,19 @@ function renderCalSettings(){
     </div>`).join('')||'<div class="fx-s tc-3">All accounts have meetings scheduled</div>'}`;
 }
 
-function saveCalCfg(){
+async function saveCalCfg(){
   const _gc=id=>{const el=document.getElementById(id);return el?el.value:'';};
   integCfg.calendar.type=_gc('cal-type')||'google';
   integCfg.calendar.email=_gc('cal-email');
   integCfg.calendar.alertDays=parseInt(_gc('cal-days'))||14;
   integCfg.calendar.connected=_gc('cal-conn')==='1';
-  toast('Calendar settings saved');renderSettings();
+  await saveIntegrationToDB('calendar',{
+    type:integCfg.calendar.type,
+    email:integCfg.calendar.email,
+    alertDays:integCfg.calendar.alertDays,
+    connected:integCfg.calendar.connected
+  });
+  toast('Calendar settings saved to database');renderSettings();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2896,479 +2917,681 @@ function printReport(){
 }
 
 // ═══════════════════════════════════════════════════════
-// SUPABASE DATABASE INTEGRATION
+// SUPABASE REST API INTEGRATION (POST / GET / PATCH / DELETE)
 // ═══════════════════════════════════════════════════════
 
-// ── CONFIG — paste your Supabase credentials here ──
-const SB_URL  = 'https://lfhlpdonndbpaczyssor.supabase.co';
-const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtcHptdXdzem90c2pxcGlteHB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NTc0NDMsImV4cCI6MjA5MjUzMzQ0M30.Fx_QQXzQRti2cUHWZ0FEbewqjzX5VjtSt5VGG27XRxg';
+// ── CREDENTIALS ──────────────────────────────────────
+const SB_URL = 'https://lfhlpdonndbpaczyssor.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtcHptdXdzem90c2pxcGlteHB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NTc0NDMsImV4cCI6MjA5MjUzMzQ0M30.Fx_QQXzQRti2cUHWZ0FEbewqjzX5VjtSt5VGG27XRxg';
 
-let DB = null;  // Supabase client
-let DB_MODE = 'local'; // 'local' | 'live'
+let DB_MODE   = 'local'; // 'local' | 'live'
+let DB        = null;    // kept for compatibility
+let AUTH_TOKEN = null;   // JWT from Supabase auth
 let currentUser = null;
 let dbSyncInterval = null;
 
-// ── INIT ──────────────────────────────────────────────
-async function initDB(){
-  // Check if credentials are configured
-  if(SB_URL==='YOUR_SUPABASE_URL'||SB_KEY==='YOUR_SUPABASE_ANON_KEY'){
-    DB_MODE='local';
-    showDBBanner('local');
-    render();
-    return;
+// ── CORE REST API HELPER ──────────────────────────────
+// Every DB call goes through this single function.
+// method : GET | POST | PATCH | DELETE
+// table  : accounts | meetings | open_points | integrations
+// params : query-string params for GET (filters, order, select)
+// body   : JSON body for POST / PATCH
+async function sbAPI(method, table, params = {}, body = null) {
+  const base = `${SB_URL}/rest/v1/${table}`;
+  const qs   = new URLSearchParams(params).toString();
+  const url  = qs ? `${base}?${qs}` : base;
+
+  const headers = {
+    'apikey':        SB_KEY,
+    'Authorization': `Bearer ${SB_KEY}`,
+    'Content-Type':  'application/json',
+    'Prefer':        method === 'POST' ? 'return=representation' : 'return=representation',
+  };
+
+  // For upsert (POST with conflict resolution)
+  if (method === 'UPSERT') {
+    headers['Prefer'] = 'resolution=merge-duplicates,return=representation';
+    method = 'POST';
   }
 
-  try{
-    DB = supabase.createClient(SB_URL, SB_KEY);
-    // Test connection
-    const {data,error} = await DB.from('accounts').select('count',{count:'exact',head:true});
-    if(error) throw error;
-    DB_MODE='live';
-    // Check auth
-    const {data:{session}} = await DB.auth.getSession();
-    if(session){
-      currentUser=session.user;
-      await loadFromDB();
-      subscribeRealtime();
-    } else {
-      showLoginScreen();
-      return;
-    }
-  }catch(e){
-    console.warn('DB connection failed, using local mode:',e.message);
-    DB_MODE='local';
-    showDBBanner('error',e.message);
-    render();
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+
+  const res = await fetch(url, opts);
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(`${method} /${table}: ${err.message || res.statusText}`);
   }
+
+  // DELETE returns 204 No Content
+  if (res.status === 204) return null;
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
 
-// ── AUTH ──────────────────────────────────────────────
-function showLoginScreen(){
-  document.body.innerHTML=`
+// ── AUTH REST API ─────────────────────────────────────
+async function sbSignIn(email, password) {
+  let res, data;
+  try {
+    res  = await fetch(`${SB_URL}/auth/v1/token?grant_type=password`, {
+      method:  'POST',
+      headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, password }),
+    });
+    data = await res.json();
+  } catch(e) {
+    throw new Error('Cannot reach Supabase. Check your internet connection or Supabase project status.');
+  }
+  if (!res.ok) {
+    const msg = data.error_description || data.msg || data.message || data.error || '';
+    if (msg.toLowerCase().includes('allowlist') || msg.toLowerCase().includes('cors') || res.status===403) {
+      const h=document.getElementById('cors-help');if(h)h.style.display='block';
+      throw new Error('Domain not allowed. See the orange box below for fix instructions.');
+    }
+    if (msg.toLowerCase().includes('invalid login') || msg.toLowerCase().includes('invalid credentials')) {
+      throw new Error('Incorrect email or password. Please try again.');
+    }
+    if (msg.toLowerCase().includes('email not confirmed')) {
+      throw new Error('Please confirm your email first. Check your inbox for a confirmation link.');
+    }
+    throw new Error(msg || `Auth failed (${res.status})`);
+  }
+  AUTH_TOKEN   = data.access_token;
+  currentUser  = data.user;
+  localStorage.setItem('sb_token',   AUTH_TOKEN);
+  localStorage.setItem('sb_user',    JSON.stringify(data.user));
+  localStorage.setItem('sb_expires', String(Date.now() + (data.expires_in * 1000)));
+  return data;
+}
+
+async function sbSignUp(email, password) {
+  let res, data;
+  try {
+    res  = await fetch(`${SB_URL}/auth/v1/signup`, {
+      method:  'POST',
+      headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, password }),
+    });
+    data = await res.json();
+  } catch(e) {
+    throw new Error('Cannot reach Supabase. Check your internet connection.');
+  }
+  if (!res.ok) {
+    const msg = data.error_description || data.msg || data.message || data.error || '';
+    if (msg.toLowerCase().includes('allowlist') || msg.toLowerCase().includes('cors') || res.status===403) {
+      throw new Error('CORS Error: Go to Supabase → Authentication → URL Configuration → add your Vercel URL to Redirect URLs and Allowed Origins.');
+    }
+    if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already exists')) {
+      throw new Error('This email is already registered. Please sign in instead.');
+    }
+    throw new Error(msg || `Signup failed (${res.status})`);
+  }
+  // If email confirmation is disabled, user gets a session immediately
+  if (data.access_token) {
+    AUTH_TOKEN  = data.access_token;
+    currentUser = data.user;
+    localStorage.setItem('sb_token',   AUTH_TOKEN);
+    localStorage.setItem('sb_user',    JSON.stringify(data.user));
+    localStorage.setItem('sb_expires', String(Date.now() + ((data.expires_in||3600) * 1000)));
+  }
+  return data;
+}
+
+async function sbSignOut() {
+  if (AUTH_TOKEN) {
+    await fetch(`${SB_URL}/auth/v1/logout`, {
+      method:  'POST',
+      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${AUTH_TOKEN}` },
+    }).catch(() => {});
+  }
+  AUTH_TOKEN  = null;
+  currentUser = null;
+  localStorage.removeItem('sb_token');
+  localStorage.removeItem('sb_user');
+  localStorage.removeItem('sb_expires');
+}
+
+async function sbRefreshToken() {
+  const refreshToken = localStorage.getItem('sb_refresh');
+  if (!refreshToken) return false;
+  try {
+    const res = await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method:  'POST',
+      headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    AUTH_TOKEN = data.access_token;
+    localStorage.setItem('sb_token',   AUTH_TOKEN);
+    localStorage.setItem('sb_expires', String(Date.now() + (data.expires_in * 1000)));
+    return true;
+  } catch(e) { return false; }
+}
+
+function restoreSession() {
+  const token   = localStorage.getItem('sb_token');
+  const user    = localStorage.getItem('sb_user');
+  const expires = localStorage.getItem('sb_expires');
+  if (token && user && expires && Date.now() < parseInt(expires)) {
+    AUTH_TOKEN  = token;
+    currentUser = JSON.parse(user);
+    return true;
+  }
+  return false;
+}
+
+// ── AUTH UI ───────────────────────────────────────────
+function showLoginScreen() {
+  document.body.innerHTML = `
   <div style="min-height:100vh;background:var(--bg);display:flex;align-items:center;justify-content:center;font-family:var(--f)">
-    <div style="background:var(--bg1);border:1px solid var(--bd);border-radius:14px;width:360px;padding:32px;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <div style="background:var(--bg1);border:1px solid var(--bd);border-radius:14px;width:380px;padding:32px;box-shadow:0 20px 60px rgba(0,0,0,.5)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px">
         <div style="width:36px;height:36px;border-radius:8px;background:var(--blue);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:11px">OTB</div>
         <div><div style="font-size:14px;font-weight:600;color:var(--tx)">Implementation Tracker</div>
-          <div style="font-size:11px;color:var(--tx3)">Connected to Supabase</div></div>
+          <div style="font-size:11px;color:var(--tx3)">Supabase REST API</div></div>
       </div>
-      <div style="font-size:13px;font-weight:500;color:var(--tx);margin-bottom:16px">Sign in to your account</div>
-      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+
+      <div id="auth-tabs" style="display:flex;gap:0;border-bottom:1px solid var(--bd);margin-bottom:20px">
+        <button onclick="switchTab('login')" id="tab-login"
+          style="flex:1;padding:8px;background:none;border:none;border-bottom:2px solid var(--blue);color:var(--blue);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--f)">Sign In</button>
+        <button onclick="switchTab('signup')" id="tab-signup"
+          style="flex:1;padding:8px;background:none;border:none;border-bottom:2px solid transparent;color:var(--tx3);font-size:12px;cursor:pointer;font-family:var(--f)">Create Account</button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px">
         <div style="display:flex;flex-direction:column;gap:4px">
           <label style="font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px">Email</label>
           <input id="auth-email" type="email" placeholder="you@company.com"
-            style="background:var(--bg2);border:1px solid var(--bd);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--tx);font-family:var(--f)">
+            style="background:var(--bg2);border:1px solid var(--bd);border-radius:6px;padding:9px 11px;font-size:13px;color:var(--tx);font-family:var(--f);width:100%">
         </div>
         <div style="display:flex;flex-direction:column;gap:4px">
           <label style="font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px">Password</label>
           <input id="auth-pass" type="password" placeholder="••••••••"
-            style="background:var(--bg2);border:1px solid var(--bd);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--tx);font-family:var(--f)"
+            style="background:var(--bg2);border:1px solid var(--bd);border-radius:6px;padding:9px 11px;font-size:13px;color:var(--tx);font-family:var(--f);width:100%"
             onkeydown="if(event.key==='Enter')doLogin()">
         </div>
       </div>
-      <div id="auth-err" style="font-size:11px;color:var(--red);margin-bottom:10px;display:none"></div>
+
+      <div id="auth-err" style="font-size:11px;margin-bottom:10px;display:none;padding:8px 10px;border-radius:6px;border:1px solid"></div>
+
       <button onclick="doLogin()" id="login-btn"
-        style="width:100%;background:var(--blue);color:#fff;border:none;border-radius:6px;padding:9px;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--f)">
+        style="width:100%;background:var(--blue);color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--f);margin-bottom:8px">
         Sign In
       </button>
-      <button onclick="doSignup()"
-        style="width:100%;background:transparent;color:var(--tx2);border:1px solid var(--bd);border-radius:6px;padding:8px;font-size:12px;cursor:pointer;font-family:var(--f);margin-top:8px">
-        Create Account
-      </button>
-      <div style="font-size:10px;color:var(--tx3);text-align:center;margin-top:12px">
-        Powered by Supabase &middot; Your data is private and secure
+      <div id="signup-hint" style="display:none">
+        <button onclick="doSignup()" id="signup-btn"
+          style="width:100%;background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd);border-radius:6px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--f)">
+          Create Account
+        </button>
+      </div>
+
+      <div style="font-size:10px;color:var(--tx3);text-align:center;margin-top:14px">
+        Supabase: lfhlpdonndbpaczyssor.supabase.co
+      </div>
+      <div id="cors-help" style="display:none;margin-top:10px;background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:6px;padding:10px;font-size:10px;color:var(--amber);line-height:1.6">
+        <strong>Fix: Go to Supabase Dashboard</strong><br>
+        Authentication &rarr; URL Configuration<br>
+        Add to Redirect URLs:<br>
+        <code style="font-size:9px">https://gp-otb-tracker-u61l.vercel.app</code><br>
+        <code style="font-size:9px">https://gp-otb-tracker-u61l-n914wog5n-ashishjha-oss-projects.vercel.app</code>
       </div>
     </div>
   </div>`;
 }
 
-async function doLogin(){
-  const email=document.getElementById('auth-email')?.value?.trim();
-  const pass=document.getElementById('auth-pass')?.value;
-  const btn=document.getElementById('login-btn');
-  const err=document.getElementById('auth-err');
-  if(!email||!pass){showAuthErr('Email and password are required');return;}
-  if(btn)btn.textContent='Signing in...';
-  const {data,error}=await DB.auth.signInWithPassword({email,password:pass});
-  if(error){showAuthErr(error.message);if(btn)btn.textContent='Sign In';return;}
-  currentUser=data.user;
-  await loadFromDB();
-  subscribeRealtime();
-  document.body.innerHTML='';
-  initApp();
+function switchTab(tab) {
+  const isLogin = tab === 'login';
+  const tLogin = document.getElementById('tab-login');
+  const tSignup = document.getElementById('tab-signup');
+  const hint = document.getElementById('signup-hint');
+  const btn = document.getElementById('login-btn');
+  if (tLogin) { tLogin.style.borderBottomColor = isLogin ? 'var(--blue)' : 'transparent'; tLogin.style.color = isLogin ? 'var(--blue)' : 'var(--tx3)'; }
+  if (tSignup) { tSignup.style.borderBottomColor = !isLogin ? 'var(--blue)' : 'transparent'; tSignup.style.color = !isLogin ? 'var(--blue)' : 'var(--tx3)'; }
+  if (hint) hint.style.display = isLogin ? 'none' : 'block';
+  if (btn) btn.style.display = isLogin ? 'block' : 'none';
 }
 
-async function doSignup(){
-  const email=document.getElementById('auth-email')?.value?.trim();
-  const pass=document.getElementById('auth-pass')?.value;
-  if(!email||!pass){showAuthErr('Email and password are required');return;}
-  if(pass.length<6){showAuthErr('Password must be at least 6 characters');return;}
-  const {error}=await DB.auth.signUp({email,password:pass});
-  if(error){showAuthErr(error.message);return;}
-  showAuthErr('Check your email for a confirmation link, then sign in.',true);
+async function doLogin() {
+  const email = document.getElementById('auth-email')?.value?.trim();
+  const pass  = document.getElementById('auth-pass')?.value;
+  const btn   = document.getElementById('login-btn');
+  if (!email || !pass) { showAuthErr('Email and password required'); return; }
+  if (btn) { btn.textContent = 'Signing in...'; btn.disabled = true; }
+  try {
+    // POST /auth/v1/token?grant_type=password
+    await sbSignIn(email, pass);
+    DB_MODE = 'live';
+    await loadFromDB();
+    document.body.innerHTML = '';
+    initApp();
+  } catch(e) {
+    showAuthErr(e.message);
+    if (btn) { btn.textContent = 'Sign In'; btn.disabled = false; }
+  }
 }
 
-function showAuthErr(msg,info=false){
-  const el=document.getElementById('auth-err');
-  if(el){el.textContent=msg;el.style.display='block';el.style.color=info?'var(--green)':'var(--red)';}
+async function doSignup() {
+  const email = document.getElementById('auth-email')?.value?.trim();
+  const pass  = document.getElementById('auth-pass')?.value;
+  if (!email || !pass) { showAuthErr('Email and password required'); return; }
+  if (pass.length < 6) { showAuthErr('Password must be at least 6 characters'); return; }
+  const sbtn = document.getElementById('signup-btn');
+  if (sbtn) { sbtn.textContent = 'Creating...'; sbtn.disabled = true; }
+  try {
+    // POST /auth/v1/signup
+    const data = await sbSignUp(email, pass);
+    if (AUTH_TOKEN) {
+      // Email confirmation disabled — logged in immediately
+      DB_MODE = 'live';
+      await loadFromDB();
+      document.body.innerHTML = '';
+      initApp();
+    } else {
+      // Email confirmation required
+      showAuthErr('Account created! Check your email inbox for a confirmation link, then sign in.', true);
+      if (sbtn) { sbtn.textContent = 'Create Account'; sbtn.disabled = false; }
+    }
+  } catch(e) {
+    showAuthErr(e.message);
+    if (sbtn) { sbtn.textContent = 'Create Account'; sbtn.disabled = false; }
+  }
 }
 
-async function doSignOut(){
-  if(DB)await DB.auth.signOut();
-  currentUser=null;
-  if(dbSyncInterval)clearInterval(dbSyncInterval);
+async function doSignOut() {
+  // POST /auth/v1/logout
+  await sbSignOut();
   showLoginScreen();
 }
 
+function showAuthErr(msg, success = false) {
+  const el = document.getElementById('auth-err');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.style.background  = success ? 'var(--green-bg)'  : 'var(--red-bg)';
+  el.style.borderColor = success ? 'var(--green-bd)'  : 'var(--red-bd)';
+  el.style.color       = success ? 'var(--green)'     : 'var(--red)';
+}
+
 // ── DB BANNER ─────────────────────────────────────────
-function showDBBanner(mode,errMsg=''){
-  const existing=document.getElementById('db-banner');
-  if(existing)existing.remove();
-  const banner=document.createElement('div');
-  banner.id='db-banner';
-  const styles={
+function showDBBanner(mode, errMsg = '') {
+  const existing = document.getElementById('db-banner');
+  if (existing) existing.remove();
+  const banner = document.createElement('div');
+  banner.id = 'db-banner';
+  const styles = {
     live:    'background:var(--green-bg);border-bottom:1px solid var(--green-bd);color:var(--green)',
     local:   'background:var(--amber-bg);border-bottom:1px solid var(--amber-bd);color:var(--amber)',
     syncing: 'background:var(--blue-bg);border-bottom:1px solid var(--blue-bd);color:var(--blue)',
     error:   'background:var(--red-bg);border-bottom:1px solid var(--red-bd);color:var(--red)',
-    saved:   'background:var(--green-bg);border-bottom:1px solid var(--green-bd);color:var(--green)',
   };
-  const msgs={
-    live:    `&#9679; Live — Connected to Supabase &middot; Real-time sync active &middot; ${currentUser?.email||''}`,
-    local:   '&#9679; Local Mode — Add Supabase credentials to enable cloud sync and team sharing',
-    syncing: '&#8635; Syncing to database...',
-    error:   `&#9888; DB Error: ${errMsg} — Running in local mode`,
-    saved:   '&#10003; Saved to database',
+  const msgs = {
+    live:    `&#9679; Live &mdash; Connected to Supabase &middot; All changes sync automatically`,
+    local:   '&#9675; Local Mode &mdash; No DB connected. Data resets on refresh.',
+    syncing: '&#8635; Syncing via REST API...',
+    error:   `&#9888; API Error: ${errMsg}`,
   };
-  banner.style.cssText=`font-size:11px;padding:5px 20px;${styles[mode]||styles.local};display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100`;
-  banner.innerHTML=`<span style="flex:1">${msgs[mode]||''}</span>
-    ${mode==='live'?`<button onclick="doSignOut()" style="background:none;border:1px solid currentColor;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;color:inherit;font-family:var(--f)">Sign Out</button>`:''}
-    ${mode==='local'?`<button onclick="openDBSetup()" style="background:none;border:1px solid currentColor;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;color:inherit;font-family:var(--f)">Connect DB</button>`:''}`;
-  const main=document.querySelector('.main');
-  if(main)main.insertBefore(banner,main.firstChild);
+  banner.style.cssText = `font-size:11px;padding:5px 20px;${styles[mode] || styles.local};display:flex;align-items:center;gap:10px;flex-shrink:0`;
+  banner.innerHTML = `<span style="flex:1">${msgs[mode] || ''}</span>`;
+  const main = document.querySelector('.main');
+  if (main) main.insertBefore(banner, main.firstChild);
 }
 
-// ── LOAD FROM DB ──────────────────────────────────────
-async function loadFromDB(){
-  if(!DB||DB_MODE!=='live')return;
-  try{
+// ── GET: LOAD ALL DATA ────────────────────────────────
+async function loadFromDB() {
+  if (DB_MODE !== 'live') return;
+  try {
     showDBBanner('syncing');
-    // Load accounts
-    const {data:accs,error:e1}=await DB.from('accounts').select('*').order('company');
-    if(e1)throw e1;
-    if(accs&&accs.length){
-      // Map DB snake_case to app camelCase
-      accounts=accs.map(mapFromDB);
+
+    // GET /rest/v1/accounts?order=company
+    const accs = await sbAPI('GET', 'accounts', { order: 'company' });
+    if (accs && accs.length) {
+      accounts = accs.map(mapFromDB);
     }
-    // Load meetings
-    const {data:meetings}=await DB.from('meetings').select('*').order('meeting_date',{ascending:false});
-    if(meetings){
-      meetings.forEach(m=>{
-        const a=accounts.find(ac=>ac.id===m.account_id);
-        if(a){if(!a.meetings)a.meetings=[];a.meetings.push(mapMeetingFromDB(m));}
+
+    // GET /rest/v1/meetings?order=meeting_date.desc
+    const mtgs = await sbAPI('GET', 'meetings', { order: 'meeting_date.desc' });
+    if (mtgs) {
+      mtgs.forEach(m => {
+        const a = accounts.find(ac => ac.id === m.account_id);
+        if (a) { if (!a.meetings) a.meetings = []; a.meetings.push(mapMeetingFromDB(m)); }
       });
     }
-    // Load open points
-    const {data:points}=await DB.from('open_points').select('*').order('created_at');
-    if(points){
-      points.forEach(p=>{
-        const a=accounts.find(ac=>ac.id===p.account_id);
-        if(a){if(!a.points)a.points=[];a.points.push(mapPointFromDB(p));}
+
+    // GET /rest/v1/open_points?order=created_at
+    const pts = await sbAPI('GET', 'open_points', { order: 'created_at' });
+    if (pts) {
+      pts.forEach(p => {
+        const a = accounts.find(ac => ac.id === p.account_id);
+        if (a) { if (!a.points) a.points = []; a.points.push(mapPointFromDB(p)); }
       });
-      // Recount openPts
-      accounts.forEach(a=>{a.openPts=(a.points||[]).filter(p=>p.status!=='Resolved').length;});
+      accounts.forEach(a => { a.openPts = (a.points || []).filter(p => p.status !== 'Resolved').length; });
     }
+
+    // GET /rest/v1/integrations
+    await loadIntegrationsFromDB();
+
     showDBBanner('live');
-  }catch(e){
-    console.error('Load error:',e);
-    showDBBanner('error',e.message);
+  } catch(e) {
+    console.error('GET load error:', e);
+    showDBBanner('error', e.message);
   }
+}
+
+// ── POST: CREATE ACCOUNT ──────────────────────────────
+async function saveAccountToDB(a) {
+  if (DB_MODE !== 'live') return;
+  try {
+    const payload = mapToDB(a);
+    const isNumericId = typeof a.id === 'number';
+
+    if (isNumericId) {
+      // POST /rest/v1/accounts  (INSERT new row)
+      const result = await sbAPI('POST', 'accounts', {}, { ...payload, id: undefined });
+      if (result && result[0]) {
+        a.id = result[0].id;
+        saveA_local(a); // update local array with new UUID
+      }
+    } else {
+      // POST /rest/v1/accounts  (UPSERT by id)
+      await sbAPI('UPSERT', 'accounts', {}, { ...payload, id: a.id });
+    }
+  } catch(e) {
+    console.error('POST account error:', e.message);
+    toast('DB save error: ' + e.message, false);
+  }
+}
+
+// ── POST: CREATE MEETING ──────────────────────────────
+async function saveMeetingToDB(m, accountId) {
+  if (DB_MODE !== 'live') return;
+  try {
+    const payload = mapMeetingToDB(m, accountId);
+    const isNew   = typeof m.id === 'number';
+    // POST /rest/v1/meetings
+    const result  = await sbAPI(isNew ? 'POST' : 'UPSERT', 'meetings', {},
+                                isNew ? { ...payload, id: undefined } : payload);
+    if (result && result[0]) m.id = result[0].id;
+  } catch(e) { console.error('POST meeting error:', e.message); }
+}
+
+// ── POST: CREATE OPEN POINT ───────────────────────────
+async function savePointToDB(p, accountId) {
+  if (DB_MODE !== 'live') return;
+  try {
+    const payload = mapPointToDB(p, accountId);
+    const isNew   = typeof p.id === 'number';
+    // POST /rest/v1/open_points
+    const result  = await sbAPI(isNew ? 'POST' : 'UPSERT', 'open_points', {},
+                                isNew ? { ...payload, id: undefined } : payload);
+    if (result && result[0]) p.id = result[0].id;
+  } catch(e) { console.error('POST point error:', e.message); }
+}
+
+// ── DELETE ENDPOINTS ──────────────────────────────────
+async function deleteAccountFromDB(id) {
+  if (DB_MODE !== 'live' || typeof id === 'number') return;
+  // DELETE /rest/v1/accounts?id=eq.<uuid>
+  await sbAPI('DELETE', 'accounts', { id: `eq.${id}` }).catch(e => console.error('DELETE account:', e.message));
+}
+
+async function deleteMeetingFromDB(id) {
+  if (DB_MODE !== 'live' || typeof id === 'number') return;
+  // DELETE /rest/v1/meetings?id=eq.<uuid>
+  await sbAPI('DELETE', 'meetings', { id: `eq.${id}` }).catch(e => console.error('DELETE meeting:', e.message));
+}
+
+async function deletePointFromDB(id) {
+  if (DB_MODE !== 'live' || typeof id === 'number') return;
+  // DELETE /rest/v1/open_points?id=eq.<uuid>
+  await sbAPI('DELETE', 'open_points', { id: `eq.${id}` }).catch(e => console.error('DELETE point:', e.message));
+}
+
+// ── POST/GET: INTEGRATIONS ────────────────────────────
+async function saveIntegrationToDB(service, config) {
+  // Always save to localStorage as instant cache
+  localStorage.setItem('intg_' + service, JSON.stringify(config));
+  if (DB_MODE !== 'live') return;
+  try {
+    // POST /rest/v1/integrations  (UPSERT by service_name)
+    await sbAPI('UPSERT', 'integrations', {}, {
+      service_name: service,
+      config:       JSON.stringify(config),
+      user_id:      currentUser?.id || null,
+      updated_at:   new Date().toISOString(),
+    });
+  } catch(e) {
+    console.error('POST integration error:', e.message);
+    toast('Saved locally only — run integrations SQL schema', false);
+  }
+}
+
+async function loadIntegrationsFromDB() {
+  // Load from localStorage cache first (instant)
+  ['jira', 'email', 'calendar', 'whatsapp'].forEach(svc => {
+    const cached = localStorage.getItem('intg_' + svc);
+    if (cached) {
+      try {
+        const cfg = JSON.parse(cached);
+        if (svc === 'jira')     integCfg.jira     = { ...integCfg.jira,     ...cfg };
+        if (svc === 'email')    integCfg.email    = { ...integCfg.email,    ...cfg };
+        if (svc === 'calendar') integCfg.calendar = { ...integCfg.calendar, ...cfg };
+        if (svc === 'whatsapp') integCfg.whatsapp = { ...integCfg.whatsapp, ...cfg };
+      } catch(e) {}
+    }
+  });
+  // Then GET from DB (authoritative, overwrites cache)
+  if (DB_MODE !== 'live') return;
+  try {
+    // GET /rest/v1/integrations?select=*
+    const rows = await sbAPI('GET', 'integrations', { select: '*' });
+    if (!rows || !rows.length) return;
+    rows.forEach(row => {
+      try {
+        const cfg = JSON.parse(row.config || '{}');
+        localStorage.setItem('intg_' + row.service_name, row.config);
+        if (row.service_name === 'jira')     integCfg.jira     = { ...integCfg.jira,     ...cfg };
+        if (row.service_name === 'email')    integCfg.email    = { ...integCfg.email,    ...cfg };
+        if (row.service_name === 'calendar') integCfg.calendar = { ...integCfg.calendar, ...cfg };
+        if (row.service_name === 'whatsapp') integCfg.whatsapp = { ...integCfg.whatsapp, ...cfg };
+      } catch(e) {}
+    });
+  } catch(e) { console.warn('GET integrations error:', e.message); }
 }
 
 // ── FIELD MAPPERS ─────────────────────────────────────
-function mapFromDB(r){
+function mapFromDB(r) {
   return {
-    id:r.id, jira:r.jira_key||'', company:r.company||'', region:r.region||'Global',
-    stage:r.stage||'handover', status:r.status||'green', mrr:r.mrr_tier||'Not Set',
-    prog:r.progress||0, plannedGL:r.planned_gl||'', expectedGL:r.expected_gl||'',
-    daysInStage:r.days_in_stage||0, nextMile:r.next_milestone||'',
-    blocker:r.blocker||'', owner:r.owner||'', lastAct:r.last_activity||'',
-    nextMeet:r.next_meeting||'', openPts:r.open_points||0,
-    auditSt:r.audit_status||'Not Started', prog:r.progress||0,
-    priority:r.priority||'Medium', notes:r.notes||'',
-    meetings:[], points:[], checks:r.checks||[false,false,false,false,false],
-    nps:r.nps!==undefined?r.nps:null, sentiment:r.sentiment||'neutral',
+    id: r.id, jira: r.jira_key || '', company: r.company || '',
+    region: r.region || 'Global', stage: r.stage || 'handover',
+    status: r.status || 'green', mrr: r.mrr_tier || 'Not Set',
+    prog: r.progress || 0, plannedGL: r.planned_gl || '',
+    expectedGL: r.expected_gl || '', daysInStage: r.days_in_stage || 0,
+    nextMile: r.next_milestone || '', blocker: r.blocker || '',
+    owner: r.owner || '', lastAct: r.last_activity || '',
+    nextMeet: r.next_meeting || '', openPts: r.open_points || 0,
+    auditSt: r.audit_status || 'Not Started', priority: r.priority || 'Medium',
+    notes: r.notes || '', checks: r.checks || [false,false,false,false,false],
+    nps: r.nps !== undefined ? r.nps : null, sentiment: r.sentiment || 'neutral',
+    meetings: [], points: [],
   };
 }
-function mapToDB(a){
+function mapToDB(a) {
   return {
-    id:typeof a.id==='number'?undefined:a.id,
-    jira_key:a.jira, company:a.company, region:a.region, stage:a.stage,
-    status:a.status, mrr_tier:a.mrr, progress:a.prog,
-    planned_gl:a.plannedGL||null, expected_gl:a.expectedGL||null,
-    days_in_stage:a.daysInStage, next_milestone:a.nextMile,
-    blocker:a.blocker||null, owner:a.owner, last_activity:a.lastAct||null,
-    next_meeting:a.nextMeet||null, open_points:a.openPts,
-    audit_status:a.auditSt, priority:a.priority, notes:a.notes||'',
-    checks:a.checks||[], nps:a.nps!==undefined?a.nps:null,
-    sentiment:a.sentiment||'neutral',
+    jira_key: a.jira, company: a.company, region: a.region,
+    stage: a.stage, status: a.status, mrr_tier: a.mrr, progress: a.prog,
+    planned_gl: a.plannedGL || null, expected_gl: a.expectedGL || null,
+    days_in_stage: a.daysInStage, next_milestone: a.nextMile,
+    blocker: a.blocker || null, owner: a.owner,
+    last_activity: a.lastAct || null, next_meeting: a.nextMeet || null,
+    open_points: a.openPts, audit_status: a.auditSt,
+    priority: a.priority, notes: a.notes || '',
+    checks: a.checks || [], nps: a.nps ?? null, sentiment: a.sentiment || 'neutral',
   };
 }
-function mapMeetingFromDB(m){return {id:m.id,date:m.meeting_date,title:m.title||'',notes:m.notes||''};}
-function mapMeetingToDB(m,accountId){return {id:typeof m.id==='number'?undefined:m.id,account_id:accountId,meeting_date:m.date,title:m.title,notes:m.notes};}
-function mapPointFromDB(p){return {id:p.id,title:p.title,prio:p.priority||'Medium',owner:p.owner||'',age:p.age_days||0,blocker:p.is_blocker||false,status:p.status||'Open',notes:p.notes||''};}
-function mapPointToDB(p,accountId){return {id:typeof p.id==='number'?undefined:p.id,account_id:accountId,title:p.title,priority:p.prio,owner:p.owner,age_days:p.age,is_blocker:p.blocker,status:p.status,notes:p.notes||''};}
+function mapMeetingFromDB(m)       { return { id: m.id, date: m.meeting_date, title: m.title || '', notes: m.notes || '' }; }
+function mapMeetingToDB(m, accId)  { return { id: typeof m.id === 'number' ? undefined : m.id, account_id: accId, meeting_date: m.date, title: m.title, notes: m.notes }; }
+function mapPointFromDB(p)         { return { id: p.id, title: p.title, prio: p.priority || 'Medium', owner: p.owner || '', age: p.age_days || 0, blocker: p.is_blocker || false, status: p.status || 'Open', notes: p.notes || '' }; }
+function mapPointToDB(p, accId)    { return { id: typeof p.id === 'number' ? undefined : p.id, account_id: accId, title: p.title, priority: p.prio, owner: p.owner, age_days: p.age, is_blocker: p.blocker, status: p.status, notes: p.notes || '' }; }
 
-// ── SAVE TO DB ────────────────────────────────────────
-async function saveAccountToDB(a){
-  if(!DB||DB_MODE!=='live')return;
-  try{
-    const payload=mapToDB(a);
-    // If ID is a number (local seed data), insert as new row
-    const isNumericId=typeof a.id==='number';
-    let dbId=a.id;
-    if(isNumericId){
-      const {data,error}=await DB.from('accounts').insert({...payload,id:undefined}).select('id').single();
-      if(error)throw error;
-      dbId=data.id;
-      // Update local id to DB uuid
-      a.id=dbId;
-      saveA(a);
-    } else {
-      const {error}=await DB.from('accounts').upsert({...payload,id:a.id});
-      if(error)throw error;
-    }
-    showDBBanner('live');
-    setTimeout(()=>showDBBanner('live'),1500);
-  }catch(e){
-    console.error('Save error:',e);
-    toast('DB save failed: '+e.message,false);
-  }
+// ── REALTIME POLLING (replaces WebSocket subscription) ──
+function subscribeRealtime() {
+  // Poll every 30 seconds to pick up changes from other CSMs
+  if (dbSyncInterval) clearInterval(dbSyncInterval);
+  dbSyncInterval = setInterval(async () => {
+    if (DB_MODE !== 'live') return;
+    try {
+      const accs = await sbAPI('GET', 'accounts', { order: 'company' });
+      if (accs) {
+        const remapped = accs.map(mapFromDB);
+        // Merge: keep local meetings/points, update account fields
+        remapped.forEach(remote => {
+          const local = accounts.find(a => a.id === remote.id);
+          if (local) {
+            Object.assign(local, remote);
+            local.meetings = local.meetings || [];
+            local.points   = local.points   || [];
+          } else {
+            accounts.push(remote);
+          }
+        });
+        // Remove deleted accounts
+        const remoteIds = new Set(remapped.map(a => a.id));
+        accounts = accounts.filter(a => typeof a.id === 'number' || remoteIds.has(a.id));
+        render();
+      }
+    } catch(e) { console.warn('Poll error:', e.message); }
+  }, 30000);
 }
 
-async function saveMeetingToDB(m,accountId){
-  if(!DB||DB_MODE!=='live')return;
-  try{
-    const payload=mapMeetingToDB(m,accountId);
-    const {data,error}=await DB.from('meetings').upsert(typeof m.id==='number'?{...payload,id:undefined}:payload).select('id').single();
-    if(error)throw error;
-    if(data)m.id=data.id;
-  }catch(e){console.error('Meeting save error:',e);}
+// ── PATCHED SAVE HOOKS ────────────────────────────────
+function saveA_local(a) {
+  const i = accounts.findIndex(x => x.id === a.id);
+  if (i >= 0) accounts[i] = a;
 }
 
-async function savePointToDB(p,accountId){
-  if(!DB||DB_MODE!=='live')return;
-  try{
-    const payload=mapPointToDB(p,accountId);
-    const {data,error}=await DB.from('open_points').upsert(typeof p.id==='number'?{...payload,id:undefined}:payload).select('id').single();
-    if(error)throw error;
-    if(data)p.id=data.id;
-  }catch(e){console.error('Point save error:',e);}
-}
-
-async function deleteAccountFromDB(id){
-  if(!DB||DB_MODE!=='live'||typeof id==='number')return;
-  await DB.from('accounts').delete().eq('id',id);
-}
-
-async function deleteMeetingFromDB(id){
-  if(!DB||DB_MODE!=='live'||typeof id==='number')return;
-  await DB.from('meetings').delete().eq('id',id);
-}
-
-async function deletePointFromDB(id){
-  if(!DB||DB_MODE!=='live'||typeof id==='number')return;
-  await DB.from('open_points').delete().eq('id',id);
-}
-
-// ── REAL-TIME SUBSCRIPTION ────────────────────────────
-function subscribeRealtime(){
-  if(!DB||DB_MODE!=='live')return;
-  DB.channel('tracker-changes')
-    .on('postgres_changes',{event:'*',schema:'public',table:'accounts'},async()=>{
-      await loadFromDB();render();
-    })
-    .on('postgres_changes',{event:'*',schema:'public',table:'meetings'},async()=>{
-      await loadFromDB();if(curDPid)renderDP();
-    })
-    .on('postgres_changes',{event:'*',schema:'public',table:'open_points'},async()=>{
-      await loadFromDB();if(curDPid)renderDP();
-    })
-    .subscribe();
-}
-
-// ── DB SETUP MODAL ────────────────────────────────────
-function openDBSetup(){
-  openMO(`
-  <div class="mo-hd"><span class="mo-hd-title">&#128279; Connect to Supabase Database</span><button class="btn btn-sm" onclick="closeMO()">&#10005;</button></div>
-  <div class="mo-body">
-    <div style="background:var(--blue-bg);border:1px solid var(--blue-bd);border-radius:var(--r);padding:12px 14px;margin-bottom:16px">
-      <div class="fn fw6 mb1 t-b">How to get your credentials</div>
-      <div class="fx-s tc-2" style="line-height:1.8">
-        1. Go to <strong>supabase.com</strong> &rarr; New Project<br>
-        2. Project &rarr; <strong>Settings &rarr; API</strong><br>
-        3. Copy <strong>Project URL</strong> and <strong>anon public key</strong><br>
-        4. Run the SQL schema below in <strong>SQL Editor</strong>
-      </div>
-    </div>
-    <div class="fg fg2 mb3">
-      <div class="fl" style="grid-column:span 2"><label>Supabase Project URL</label>
-        <input id="sb-url" placeholder="https://xxxx.supabase.co"></div>
-      <div class="fl" style="grid-column:span 2"><label>Supabase Anon Key</label>
-        <input id="sb-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></div>
-    </div>
-    <div class="sec-title mb2">SQL Schema — Run this in Supabase SQL Editor</div>
-    <div style="background:var(--bg3);border:1px solid var(--bd);border-radius:var(--r);padding:12px;font-size:10px;font-family:var(--m);color:var(--tx2);max-height:180px;overflow-y:auto;line-height:1.6">
-create extension if not exists "uuid-ossp";<br>
-create table accounts (id uuid primary key default uuid_generate_v4(),jira_key text,company text not null,region text,stage text default 'handover',status text default 'green',mrr_tier text,progress int default 0,planned_gl date,expected_gl date,days_in_stage int default 0,next_milestone text,blocker text,owner text,last_activity date,next_meeting date,open_points int default 0,audit_status text default 'Not Started',priority text default 'Medium',notes text,checks jsonb,nps int,sentiment text,created_at timestamptz default now(),updated_at timestamptz default now());<br>
-create table meetings (id uuid primary key default uuid_generate_v4(),account_id uuid references accounts(id) on delete cascade,meeting_date date,title text,notes text,created_at timestamptz default now());<br>
-create table open_points (id uuid primary key default uuid_generate_v4(),account_id uuid references accounts(id) on delete cascade,title text,priority text default 'Medium',owner text,age_days int default 0,is_blocker boolean default false,status text default 'Open',notes text,created_at timestamptz default now());<br>
-alter table accounts enable row level security;<br>
-alter table meetings enable row level security;<br>
-alter table open_points enable row level security;<br>
-create policy "auth" on accounts for all using (auth.role()='authenticated');<br>
-create policy "auth" on meetings for all using (auth.role()='authenticated');<br>
-create policy "auth" on open_points for all using (auth.role()='authenticated');
-    </div>
-    <button onclick="copySQL()" class="btn btn-xs mt2">Copy SQL</button>
-  </div>
-  <div class="mo-ft">
-    <button class="btn btn-p" onclick="applyDBConfig()">Connect &amp; Reload</button>
-    <button class="btn" onclick="closeMO()">Cancel</button>
-  </div>`);
-}
-
-function copySQL(){
-  const sql=`create extension if not exists "uuid-ossp";
-create table accounts (id uuid primary key default uuid_generate_v4(),jira_key text,company text not null,region text,stage text default 'handover',status text default 'green',mrr_tier text,progress int default 0,planned_gl date,expected_gl date,days_in_stage int default 0,next_milestone text,blocker text,owner text,last_activity date,next_meeting date,open_points int default 0,audit_status text default 'Not Started',priority text default 'Medium',notes text,checks jsonb,nps int,sentiment text,created_at timestamptz default now(),updated_at timestamptz default now());
-create table meetings (id uuid primary key default uuid_generate_v4(),account_id uuid references accounts(id) on delete cascade,meeting_date date,title text,notes text,created_at timestamptz default now());
-create table open_points (id uuid primary key default uuid_generate_v4(),account_id uuid references accounts(id) on delete cascade,title text,priority text default 'Medium',owner text,age_days int default 0,is_blocker boolean default false,status text default 'Open',notes text,created_at timestamptz default now());
-alter table accounts enable row level security;
-alter table meetings enable row level security;
-alter table open_points enable row level security;
-create policy "auth" on accounts for all using (auth.role()='authenticated');
-create policy "auth" on meetings for all using (auth.role()='authenticated');
-create policy "auth" on open_points for all using (auth.role()='authenticated');`;
-  navigator.clipboard&&navigator.clipboard.writeText(sql).then(()=>toast('SQL copied — paste in Supabase SQL Editor'));
-}
-
-function applyDBConfig(){
-  const urlEl=document.getElementById('sb-url');
-  const keyEl=document.getElementById('sb-key');
-  if(!urlEl||!keyEl){toast('Form not loaded',false);return;}
-  const url=urlEl.value.trim();
-  const key=keyEl.value.trim();
-  if(!url||!key){toast('Both fields are required',false);return;}
-  // Store in localStorage
-  localStorage.setItem('sb_url',url);
-  localStorage.setItem('sb_key',key);
-  closeMO();
-  toast('Credentials saved — reloading...');
-  setTimeout(()=>location.reload(),1200);
-}
-
-// ── PATCH SAVE FUNCTIONS TO ALSO SYNC DB ─────────────
-const _origSaveA=saveA;
-function saveA(a){
+const _origSaveA = saveA;
+function saveA(a) {
   _origSaveA(a);
-  if(DB_MODE==='live')saveAccountToDB(a);
+  if (DB_MODE === 'live') saveAccountToDB(a);
 }
 
-const _origDoDelete=doDelete;
-function doDelete(id){
+const _origDoDelete = doDelete;
+function doDelete(id) {
   deleteAccountFromDB(id);
   _origDoDelete(id);
 }
 
-const _origSaveAddMeeting=saveAddMeeting;
-async function saveAddMeeting(accountId){
+const _origSaveAddMeeting = saveAddMeeting;
+async function saveAddMeeting(accountId) {
   _origSaveAddMeeting(accountId);
-  // Sync latest meeting to DB
-  setTimeout(async()=>{
-    const a=getA(accountId);if(!a||!a.meetings||!a.meetings.length)return;
-    await saveMeetingToDB(a.meetings[0],accountId);
+  setTimeout(async () => {
+    const a = getA(accountId); if (!a || !a.meetings || !a.meetings.length) return;
+    await saveMeetingToDB(a.meetings[0], accountId);
     await saveAccountToDB(a);
-  },100);
+  }, 100);
 }
 
-const _origDeleteMeeting=deleteMeeting;
-function deleteMeeting(accountId,meetingId){
-  deleteFromDB_Meeting(meetingId);
-  _origDeleteMeeting(accountId,meetingId);
-}
-async function deleteFromDB_Meeting(id){await deleteMeetingFromDB(id);}
-
-const _origSaveEdit=saveEdit;
-function saveEdit(id){
-  _origSaveEdit(id);
-  // saveA is already patched above
+const _origDeleteMeeting = deleteMeeting;
+function deleteMeeting(accountId, meetingId) {
+  deleteMeetingFromDB(meetingId);
+  _origDeleteMeeting(accountId, meetingId);
 }
 
-const _origSaveAddAccount=saveAddAccount;
-function saveAddAccount(){
-  _origSaveAddAccount();
-  // New account gets synced via patched saveA
+// ── DB SETUP MODAL ────────────────────────────────────
+function openDBSetup() {
+  openMO(`
+  <div class="mo-hd"><span class="mo-hd-title">&#128279; Supabase REST API Setup</span><button class="btn btn-sm" onclick="closeMO()">&#10005;</button></div>
+  <div class="mo-body">
+    <div style="background:var(--blue-bg);border:1px solid var(--blue-bd);border-radius:var(--r);padding:12px 14px;margin-bottom:14px">
+      <div class="fn fw6 mb1 t-b">API Endpoints Used</div>
+      <div class="fx-xs tc-2" style="font-family:var(--m);line-height:2">
+        POST  /auth/v1/token &nbsp;&mdash;&nbsp; Sign in<br>
+        POST  /auth/v1/signup &nbsp;&mdash;&nbsp; Create account<br>
+        GET   /rest/v1/accounts &nbsp;&mdash;&nbsp; Fetch all accounts<br>
+        POST  /rest/v1/accounts &nbsp;&mdash;&nbsp; Create / upsert account<br>
+        DELETE /rest/v1/accounts?id=eq.{id} &nbsp;&mdash;&nbsp; Delete<br>
+        GET   /rest/v1/meetings &nbsp;&mdash;&nbsp; Fetch meetings<br>
+        POST  /rest/v1/meetings &nbsp;&mdash;&nbsp; Save meeting<br>
+        GET   /rest/v1/open_points &nbsp;&mdash;&nbsp; Fetch open points<br>
+        POST  /rest/v1/open_points &nbsp;&mdash;&nbsp; Save point<br>
+        GET   /rest/v1/integrations &nbsp;&mdash;&nbsp; Load Jira/Email config<br>
+        POST  /rest/v1/integrations &nbsp;&mdash;&nbsp; Save Jira/Email config
+      </div>
+    </div>
+    <div class="sec-title mb2">Run this SQL in Supabase SQL Editor first</div>
+    <div style="background:var(--bg3);border:1px solid var(--bd);border-radius:var(--r);padding:10px;font-size:10px;font-family:var(--m);color:var(--tx2);max-height:160px;overflow-y:auto;line-height:1.7">
+create extension if not exists "uuid-ossp";<br>
+create table accounts (id uuid primary key default uuid_generate_v4(),jira_key text,company text not null,region text,stage text default 'handover',status text default 'green',mrr_tier text,progress int default 0,planned_gl date,expected_gl date,days_in_stage int default 0,next_milestone text,blocker text,owner text,last_activity date,next_meeting date,open_points int default 0,audit_status text default 'Not Started',priority text default 'Medium',notes text,checks jsonb,nps int,sentiment text,created_at timestamptz default now());<br>
+create table meetings (id uuid primary key default uuid_generate_v4(),account_id uuid references accounts(id) on delete cascade,meeting_date date,title text,notes text,created_at timestamptz default now());<br>
+create table open_points (id uuid primary key default uuid_generate_v4(),account_id uuid references accounts(id) on delete cascade,title text,priority text default 'Medium',owner text,age_days int default 0,is_blocker boolean default false,status text default 'Open',notes text,created_at timestamptz default now());<br>
+create table integrations (id uuid primary key default uuid_generate_v4(),service_name text unique not null,config text,user_id uuid,updated_at timestamptz default now());<br>
+alter table accounts enable row level security;<br>
+alter table meetings enable row level security;<br>
+alter table open_points enable row level security;<br>
+alter table integrations enable row level security;<br>
+create policy "auth_all" on accounts for all using (auth.role()='authenticated');<br>
+create policy "auth_all" on meetings for all using (auth.role()='authenticated');<br>
+create policy "auth_all" on open_points for all using (auth.role()='authenticated');<br>
+create policy "auth_all" on integrations for all using (auth.role()='authenticated');
+    </div>
+    <button onclick="copySQL()" class="btn btn-xs mt2">Copy SQL</button>
+  </div>
+  <div class="mo-ft"><button class="btn btn-p" onclick="closeMO();location.reload()">Reload App</button><button class="btn" onclick="closeMO()">Close</button></div>`);
 }
 
-// ── READ CREDENTIALS FROM localStorage ───────────────
-function readStoredCredentials(){
-  const url=localStorage.getItem('sb_url');
-  const key=localStorage.getItem('sb_key');
-  if(url&&key){
-    // Dynamically patch the constants
-    window._SB_URL=url;
-    window._SB_KEY=key;
-    return {url,key};
-  }
-  return null;
+function copySQL() {
+  const sql = `create extension if not exists "uuid-ossp";
+create table accounts (id uuid primary key default uuid_generate_v4(),jira_key text,company text not null,region text,stage text default 'handover',status text default 'green',mrr_tier text,progress int default 0,planned_gl date,expected_gl date,days_in_stage int default 0,next_milestone text,blocker text,owner text,last_activity date,next_meeting date,open_points int default 0,audit_status text default 'Not Started',priority text default 'Medium',notes text,checks jsonb,nps int,sentiment text,created_at timestamptz default now());
+create table meetings (id uuid primary key default uuid_generate_v4(),account_id uuid references accounts(id) on delete cascade,meeting_date date,title text,notes text,created_at timestamptz default now());
+create table open_points (id uuid primary key default uuid_generate_v4(),account_id uuid references accounts(id) on delete cascade,title text,priority text default 'Medium',owner text,age_days int default 0,is_blocker boolean default false,status text default 'Open',notes text,created_at timestamptz default now());
+create table integrations (id uuid primary key default uuid_generate_v4(),service_name text unique not null,config text,user_id uuid,updated_at timestamptz default now());
+alter table accounts enable row level security;
+alter table meetings enable row level security;
+alter table open_points enable row level security;
+alter table integrations enable row level security;
+create policy "auth_all" on accounts for all using (auth.role()='authenticated');
+create policy "auth_all" on meetings for all using (auth.role()='authenticated');
+create policy "auth_all" on open_points for all using (auth.role()='authenticated');
+create policy "auth_all" on integrations for all using (auth.role()='authenticated');`;
+  navigator.clipboard && navigator.clipboard.writeText(sql).then(() => toast('SQL copied'));
+}
+
+function applyDBConfig() {
+  const urlEl = document.getElementById('sb-url');
+  const keyEl = document.getElementById('sb-key');
+  if (!urlEl || !keyEl) return;
+  localStorage.setItem('sb_url', urlEl.value.trim());
+  localStorage.setItem('sb_key', keyEl.value.trim());
+  closeMO();
+  toast('Saved — reloading...');
+  setTimeout(() => location.reload(), 1000);
 }
 
 // ── INIT APP ──────────────────────────────────────────
-function initApp(){
-  // Rebuild DOM if login cleared it
-  if(!document.querySelector('.app')){
-    location.reload();
-    return;
-  }
+function initApp() {
+  if (!document.querySelector('.app')) { location.reload(); return; }
   showDBBanner('live');
   render();
 }
 
-// ── STARTUP ───────────────────────────────────────────
-(async()=>{
-  // Check localStorage for saved credentials
-  const stored=readStoredCredentials();
-  const finalURL = stored?stored.url:SB_URL;
-  const finalKEY = stored?stored.key:SB_KEY;
-
-  if(finalURL==='YOUR_SUPABASE_URL'||finalKEY==='YOUR_SUPABASE_ANON_KEY'){
-    // No credentials — run local mode
-    DB_MODE='local';
+// ── STARTUP (No Login Required) ──────────────────────
+(async () => {
+  // Load app immediately — no login screen
+  render();
+  // Try to connect to DB in background
+  try {
+    DB_MODE = 'live';
+    await loadFromDB();
+    subscribeRealtime();
     render();
-    // Show connect button in topbar area after render
-    setTimeout(()=>showDBBanner('local'),100);
-    return;
-  }
-
-  try{
-    DB=supabase.createClient(finalURL,finalKEY);
-    const {data:{session}}=await DB.auth.getSession();
-    if(session){
-      currentUser=session.user;
-      await loadFromDB();
-      subscribeRealtime();
-      render();
-      setTimeout(()=>showDBBanner('live'),100);
-    } else {
-      // Need to login
-      render(); // render app shell first
-      showLoginScreen();
-    }
-  }catch(e){
-    console.warn('Startup error:',e.message);
-    DB_MODE='local';
-    render();
-    setTimeout(()=>showDBBanner('error',e.message),100);
+    setTimeout(() => showDBBanner('live'), 100);
+  } catch(e) {
+    console.warn('DB load failed, running local mode:', e.message);
+    DB_MODE = 'local';
+    setTimeout(() => showDBBanner('local'), 100);
   }
 })();
 </script>
