@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html><!-- build:1777566068 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -820,23 +820,89 @@ function renderSettings(){
 // ── JIRA API HELPER ──────────────────────────────────
 async function jiraAPI(method,path,body=null){
   const cfg=integCfg.jira;
-  if(!cfg.url||!cfg.token) throw new Error('Jira not configured. Add URL, email and API token.');
-  const base=cfg.url.replace(/\/+$/,'');
-  const proxyUrl='https://corsproxy.io/?'+encodeURIComponent(base+'/rest/api/3'+path);
-  const headers={
-    'Content-Type':'application/json',
-    'Accept':'application/json',
-    'Authorization':'Basic '+btoa((cfg.email||'')+':'+cfg.token),
-  };
-  const opts={method,headers};
-  if(body) opts.body=JSON.stringify(body);
-  const res=await fetch(proxyUrl,opts);
-  if(!res.ok){
-    const err=await res.json().catch(()=>({errorMessages:[res.statusText]}));
-    throw new Error(((err.errorMessages||[])[0]||err.message||'Jira API error')+' ('+res.status+')');
+  if(!cfg.url||!cfg.token||!cfg.email){
+    throw new Error('Jira not configured. Add URL, email and API token in Settings.');
   }
-  return res.status===204?null:res.json();
+
+  // ── Call Supabase Edge Function (server-side proxy — no CORS issues) ──
+  const EDGE_URL='https://lfhlpdonndbpaczyssor.supabase.co/functions/v1/jira-proxy';
+
+  try{
+    const res=await fetch(EDGE_URL,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+SB_KEY,
+      },
+      body:JSON.stringify({
+        jiraUrl: cfg.url,
+        email:   cfg.email,
+        token:   cfg.token,
+        method:  method,
+        path:    path,
+        payload: body||undefined,
+      }),
+    });
+
+    if(!res.ok){
+      const err=await res.json().catch(()=>({error:res.statusText}));
+      if(res.status===401) throw new Error('Jira auth failed — check email and API token');
+      if(res.status===404) throw new Error('Edge Function not deployed yet — see setup instructions');
+      throw new Error(err.error||err.message||'Jira API error ('+res.status+')');
+    }
+
+    const data=await res.json();
+    if(data.error) throw new Error(data.error);
+    return data;
+
+  }catch(e){
+    // If Edge Function not deployed, fall back to direct proxy attempts
+    if(e.message.includes('not deployed')||e.message.includes('Failed to fetch')){
+      console.warn('Edge function unavailable, trying CORS proxies...');
+      return jiraAPIFallback(method,path,body);
+    }
+    throw e;
+  }
 }
+
+// Fallback: direct CORS proxies (if edge function not deployed yet)
+async function jiraAPIFallback(method,path,body=null){
+  const cfg=integCfg.jira;
+  const base=cfg.url.replace(/\/+$/,'');
+  const target=base+'/rest/api/3'+path;
+  const auth='Basic '+btoa((cfg.email||'')+':'+cfg.token);
+  const reqOpts={
+    method,
+    headers:{
+      'Content-Type':'application/json',
+      'Accept':'application/json',
+      'Authorization':auth,
+    },
+    ...(body?{body:JSON.stringify(body)}:{})
+  };
+  const proxies=[
+    'https://api.allorigins.win/raw?url='+encodeURIComponent(target),
+    'https://corsproxy.io/?url='+encodeURIComponent(target),
+    'https://thingproxy.freeboard.io/fetch/'+target,
+  ];
+  let lastErr='All proxies failed';
+  for(const url of proxies){
+    try{
+      const res=await fetch(url,reqOpts);
+      if(res.status===0||res.status===403){continue;}
+      if(res.status===401) throw new Error('Jira auth failed — check email and API token');
+      if(!res.ok){const e=await res.json().catch(()=>({errorMessages:[res.statusText]}));throw new Error(((e.errorMessages||[])[0]||e.message||res.statusText));}
+      if(res.status===204) return null;
+      const text=await res.text();
+      return text?JSON.parse(text):null;
+    }catch(e){
+      if(e.message.includes('auth failed')) throw e;
+      lastErr=e.message;
+    }
+  }
+  throw new Error('Jira connection failed. Please deploy the Supabase Edge Function. Error: '+lastErr);
+}
+
 
 async function fetchJiraIssues(){
   const cfg=integCfg.jira;
@@ -3031,7 +3097,7 @@ function printReport(){
 
 // ── CREDENTIALS ──────────────────────────────────────
 const SB_URL = 'https://lfhlpdonndbpaczyssor.supabase.co';
-const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtcHptdXdzem90c2pxcGlteHB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NTc0NDMsImV4cCI6MjA5MjUzMzQ0M30.Fx_QQXzQRti2cUHWZ0FEbewqjzX5VjtSt5VGG27XRxg';
+const SB_KEY = 'sb_publishable_Q4QljtXuRCynqfaXOLQuWw_IW25knRT';
 
 let DB_MODE   = 'local'; // 'local' | 'live'
 let DB        = null;    // kept for compatibility
@@ -3070,7 +3136,12 @@ async function sbAPI(method, table, params = {}, body = null) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(`${method} /${table}: ${err.message || res.statusText}`);
+    if(res.status===401){
+      throw new Error('Supabase 401: Run this SQL in Supabase SQL Editor: '+
+        'drop policy if exists "auth_all" on accounts; '+
+        'create policy "public_all" on accounts for all using (true) with check (true);');
+    }
+    throw new Error(method+' /'+table+': '+(err.message||res.statusText));
   }
 
   // DELETE returns 204 No Content
@@ -3578,7 +3649,7 @@ function subscribeRealtime() {
     if(integCfg.jira.connected&&integCfg.jira.autoEscalate){
       autoEscalateBlockers().catch(e=>console.warn('Auto-escalation error:',e.message));
     }
-  }, 30000);
+  }, 60000); // Poll every 60s
 }
 
 // ── PATCHED SAVE HOOKS ────────────────────────────────
