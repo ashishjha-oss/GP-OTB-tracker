@@ -825,7 +825,7 @@ async function jiraAPI(method,path,body=null){
   }
 
   // ── Call Supabase Edge Function (server-side proxy — no CORS issues) ──
-  const EDGE_URL='https://lfhlpdonndbpaczyssor.supabase.co/functions/v1/jira-proxy';
+  const EDGE_URL='https://lfhlpdonndbpaczyssor.supabase.co/functions/v1/dynamic-handler';
 
   try{
     const res=await fetch(EDGE_URL,{
