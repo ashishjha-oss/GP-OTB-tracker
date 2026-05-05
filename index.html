@@ -836,8 +836,9 @@ async function jiraAPI(method,path,body=null){
       },
       body:JSON.stringify({
         jiraUrl: cfg.url,
-        email:   cfg.email,
-        token:   cfg.token,
+        // Strip any markdown formatting from email e.g. [x](mailto:x) → x
+        email:   (cfg.email||'').replace(/\[([^\]]+)\]\([^)]+\)/g,'$1').trim(),
+        token:   (cfg.token||'').replace(/\s+/g,'').trim(),
         method:  method,
         path:    path,
         payload: body||undefined,
@@ -1028,9 +1029,19 @@ async function saveJiraCfg(){
   const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
   const url=g('j-url').replace(/\/+$/,'');
   const proj=g('j-proj');
-  const email=g('j-email');
-  const token=g('j-tok');
+  // Aggressively clean email — strip markdown, spaces, mailto: prefix
+  const rawEmail=g('j-email');
+  const email=rawEmail
+    .replace(/\[([^\]]+)\]\([^)]*\)/g,'$1')  // [x](mailto:x) -> x
+    .replace(/^mailto:/i,'')                        // mailto:x -> x
+    .replace(/[<>]/g,'')                            // <x> -> x
+    .replace(/\s+/g,'')                            // remove spaces
+    .toLowerCase()
+    .trim();
+  // Clean token — remove spaces and newlines
+  const token=g('j-tok').replace(/\s+/g,'').trim();
   if(!url||!email||!token){toast('Jira URL, email and API token are all required',false);return;}
+  if(!email.includes('@')){toast('Email format invalid: '+email,false);return;}
   integCfg.jira.url=url;
   integCfg.jira.project=proj||'OTB';
   integCfg.jira.email=email;
