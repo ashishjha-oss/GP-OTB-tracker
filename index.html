@@ -1069,6 +1069,90 @@ async function saveJiraCfg(){
   renderSettings();
 }
 
+// ── JIRA CSV IMPORT ──────────────────────────────────
+function importJiraCSV(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const lines=e.target.result.split('\n');
+    if(lines.length<2){toast('CSV appears empty',false);return;}
+    const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase());
+    let imported=0;
+    for(let i=1;i<lines.length;i++){
+      if(!lines[i].trim())continue;
+      const row=parseCSVRow(lines[i]);
+      if(row.length<2)continue;
+      const get=function(names){for(const n of names){const ix=headers.findIndex(h=>h.includes(n));if(ix>=0&&row[ix])return row[ix].trim();}return '';};
+      const company=get(['summary','company name','company']);
+      if(!company)continue;
+      const jiraKey=get(['issue key','key','id','jira']);
+      const statusRaw=get(['status']).toLowerCase();
+      const stageMap={'sales hand':0,'handover':0,'discovery':1,'integr':2,'config':3,'training':4,'onsite':5,'golive':6,'go-live':6,'live':6,'already live':6,'audit':7,'stab':8,'done':8};
+      let stageId='discovery';
+      for(const k of Object.keys(stageMap)){if(statusRaw.includes(k)){stageId=STAGES[stageMap[k]]?STAGES[stageMap[k]].id:'discovery';break;}}
+      const existing=accounts.find(a=>a.jira===jiraKey||(company&&a.company.toLowerCase()===company.toLowerCase()));
+      if(existing){
+        existing.stage=stageId;
+        if(jiraKey)existing.jira=jiraKey;
+        const d=get(['due date','expected','go-live date']);
+        if(d)existing.expectedGL=d;
+        saveA(existing);imported++;
+      } else {
+        const si=STAGES.findIndex(s=>s.id===stageId);
+        const progMap=[8,18,38,52,65,78,95,88,100];
+        const newA={id:uid(),jira:jiraKey||('IMP-'+nextId),company,
+          region:get(['region'])||'Global',stage:stageId,status:'yellow',
+          mrr:get(['mrr'])||'Not Set',prog:progMap[si>=0?si:0]||20,
+          daysInStage:parseInt(get(['days']))||0,
+          nextMile:get(['milestone'])||'',
+          blocker:get(['blocker','pending reason','block'])||'',
+          owner:get(['assignee','owner'])||'',
+          plannedGL:get(['planned','due'])||'',
+          expectedGL:get(['expected','customer eta'])||'',
+          lastAct:new Date().toISOString().slice(0,10),
+          nextMeet:'',openPts:0,auditSt:'Not Started',
+          priority:get(['priority'])||'Medium',notes:'',
+          meetings:[],points:[],checks:[false,false,false,false,false]};
+        accounts.push(newA);imported++;
+      }
+    }
+    input.value='';render();
+    toast('Imported '+imported+' accounts from CSV');
+  };
+  reader.readAsText(file);
+}
+
+function parseCSVRow(line){
+  const result=[];let cur='',inQ=false;
+  for(let i=0;i<line.length;i++){
+    if(line[i]==='"'){inQ=!inQ;}
+    else if(line[i]===','&&!inQ){result.push(cur);cur='';}
+    else cur+=line[i];
+  }
+  result.push(cur);
+  return result.map(function(v){return v.replace(/^"|"$/g,'').trim();});
+}
+
+function exportAllJira(){
+  const headers=['Jira Key','Company','Region','Stage','Status','MRR','Progress %','Planned GL','Expected GL','Days in Stage','Blocker','Owner','Open Points','Audit Status','Last Activity','Next Meeting','Milestone','Priority'];
+  const rows=accounts.map(function(a){
+    return [a.jira,a.company,a.region,sn(a.stage),
+      a.status==='green'?'On Track':a.status==='yellow'?'At Risk':'Critical',
+      a.mrr,a.prog,a.plannedGL||'',a.expectedGL||'',a.daysInStage,
+      a.blocker||'',a.owner||'',a.openPts,a.auditSt,
+      a.lastAct||'',a.nextMeet||'',a.nextMile||'',a.priority
+    ].map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(',');
+  });
+  const csv=[headers.join(',')].concat(rows).join('\n');
+  const b=new Blob([csv],{type:'text/csv'});
+  const u=URL.createObjectURL(b);
+  const a=document.createElement('a');
+  a.href=u;a.download='OTB_Export_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();URL.revokeObjectURL(u);
+  toast('Exported '+accounts.length+' accounts');
+}
+
+
 function renderJiraSettings(){
   const cfg=integCfg.jira;
   const issueRows=(cfg.jiraIssues||[]).slice(0,15).map(function(iss){
