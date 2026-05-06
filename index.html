@@ -1070,6 +1070,12 @@ async function saveJiraCfg(){
 }
 
 // ── JIRA CSV IMPORT ──────────────────────────────────
+function triggerImport(){
+  const el=document.getElementById('jira-file-in');
+  if(el){el.value='';el.click();}
+  else toast('File input not found — try refreshing',false);
+}
+
 function importJiraCSV(input){
   const file=input.files[0];if(!file)return;
   const reader=new FileReader();
@@ -1131,6 +1137,28 @@ function parseCSVRow(line){
   }
   result.push(cur);
   return result.map(function(v){return v.replace(/^"|"$/g,'').trim();});
+}
+
+function openImportExportMO(){
+  openMO(`
+  <div class="mo-hd"><span class="mo-hd-title">&#8597; Jira Import / Export</span><button class="btn btn-sm" onclick="closeMO()">&#10005;</button></div>
+  <div class="mo-body">
+    <div class="card-sm mb3">
+      <div class="fn fw6 mb1">&#8593; Import CSV from Jira</div>
+      <div class="fx-xs tc-2 mb2">Export your Jira issues as CSV and import here. Columns mapped: Issue Key, Summary, Status, Assignee, Priority, Due Date.</div>
+      <label style="display:inline-block;background:var(--blue);color:#fff;padding:7px 14px;border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:500">
+        Choose CSV File
+        <input type="file" accept=".csv" style="display:none" onchange="importJiraCSV(this);closeMO()">
+      </label>
+    </div>
+    <div class="divider"></div>
+    <div class="card-sm">
+      <div class="fn fw6 mb1">&#8595; Export All Accounts</div>
+      <div class="fx-xs tc-2 mb2">Download all ${accounts.length} accounts as CSV with all fields.</div>
+      <button class="btn btn-p btn-sm" onclick="exportAllJira();closeMO()">Download CSV</button>
+    </div>
+  </div>
+  <div class="mo-ft"><button class="btn" onclick="closeMO()">Close</button></div>`);
 }
 
 function exportAllJira(){
@@ -1197,8 +1225,7 @@ function renderJiraSettings(){
       :'')
     +'<div class="fx fxa fxb mb2"><span class="sec-title">Import / Export</span>'
     +'<div class="fx gap2">'
-    +'<button class="btn btn-sm btn-p" onclick="document.getElementById(\'jira-file-in\').click()">&#8593; Import CSV</button>'
-    +'<button class="btn btn-sm" onclick="exportAllJira()">&#8595; Export CSV</button>'
+    +'<button class="btn btn-sm btn-p" onclick="openImportExportMO()">&#8593;&#8595; Import / Export</button>'
     +'<input type="file" id="jira-file-in" accept=".csv" style="display:none" onchange="importJiraCSV(this)">'
     +'</div></div>'
     +'<div class="fx-xs tc-3 mb3">Import your Jira CSV &mdash; stages, owners, blockers mapped automatically.</div>'
