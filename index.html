@@ -1122,8 +1122,18 @@ function importJiraCSV(input){
         accounts.push(newA);imported++;
       }
     }
-    input.value='';render();
-    toast('Imported '+imported+' accounts from CSV');
+    input.value='';
+    render();
+    toast('Imported '+imported+' accounts'+(DB_MODE==='live'?' — saving to database...':''));
+    // Save all newly imported accounts to DB asynchronously
+    if (DB_MODE === 'live') {
+      (async function(){
+        for (const a of accounts) {
+          if (typeof a.id === 'number') await saveAccountToDB(a).catch(()=>{});
+        }
+        toast('Imported '+imported+' accounts saved to database');
+      })();
+    }
   };
   reader.readAsText(file);
 }
@@ -3550,7 +3560,12 @@ async function loadFromDB() {
     // GET /rest/v1/accounts?order=company
     const accs = await sbAPI('GET', 'accounts', { order: 'company' });
     if (accs && accs.length) {
+      // DB has data — load it
       accounts = accs.map(mapFromDB);
+    } else {
+      // DB is empty — seed with local accounts
+      console.log('DB empty — seeding ' + accounts.length + ' accounts...');
+      await seedAccountsToDB();
     }
 
     // GET /rest/v1/meetings?order=meeting_date.desc
@@ -3583,6 +3598,26 @@ async function loadFromDB() {
 }
 
 // ── POST: CREATE ACCOUNT ──────────────────────────────
+async function seedAccountsToDB() {
+  // Bulk insert all local accounts into Supabase
+  let seeded = 0;
+  for (const a of accounts) {
+    try {
+      const payload = mapToDB(a);
+      const result = await sbAPI('POST', 'accounts', {}, { ...payload, id: undefined });
+      if (result && result[0]) {
+        a.id = result[0].id; // update to UUID
+        saveA_local(a);
+        seeded++;
+      }
+    } catch(e) {
+      console.warn('Seed error for ' + a.company + ':', e.message);
+    }
+  }
+  console.log('Seeded ' + seeded + ' accounts to DB');
+  toast('Synced ' + seeded + ' accounts to database');
+}
+
 async function saveAccountToDB(a) {
   if (DB_MODE !== 'live') return;
   try {
@@ -3590,14 +3625,14 @@ async function saveAccountToDB(a) {
     const isNumericId = typeof a.id === 'number';
 
     if (isNumericId) {
-      // POST /rest/v1/accounts  (INSERT new row)
+      // Numeric ID = local seed data, INSERT as new row
       const result = await sbAPI('POST', 'accounts', {}, { ...payload, id: undefined });
-      if (result && result[0]) {
-        a.id = result[0].id;
-        saveA_local(a); // update local array with new UUID
+      if (result && result[0] && result[0].id) {
+        a.id = result[0].id; // replace numeric id with UUID
+        saveA_local(a);
       }
     } else {
-      // POST /rest/v1/accounts  (UPSERT by id)
+      // UUID = already in DB, UPSERT
       await sbAPI('UPSERT', 'accounts', {}, { ...payload, id: a.id });
     }
   } catch(e) {
