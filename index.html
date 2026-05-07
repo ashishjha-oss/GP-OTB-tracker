@@ -395,7 +395,7 @@ function toast(msg,ok=true){
 }
 
 function getA(id){return accounts.find(x=>x.id===id);}
-function saveA(a){const i=accounts.findIndex(x=>x.id===a.id);if(i>=0)accounts[i]=a;}
+function saveA_base(a){const i=accounts.findIndex(x=>x.id===a.id);if(i>=0)accounts[i]=a;}
 
 // ═══════════════════════════════════════════════════════
 // SIDEBAR & NAVIGATION
@@ -1211,6 +1211,8 @@ function parseCSVRow(line){
   result.push(cur);
   return result.map(function(v){return v.replace(/^"|"$/g,'').trim();});
 }
+
+function exportToJira(accountId){pushOpenPointsToJira(accountId);}
 
 function openImportExportMO(){
   openMO(`
@@ -3598,7 +3600,7 @@ function showAuthErr(msg, success = false) {
 // ── DB BANNER ─────────────────────────────────────────
 function showDBBanner(mode, errMsg = '') {
   const existing = document.getElementById('db-banner');
-  if (existing) existing.remove();
+  if (existing && typeof existing.remove === 'function') existing.remove();
   const banner = document.createElement('div');
   banner.id = 'db-banner';
   const styles = {
@@ -3615,7 +3617,7 @@ function showDBBanner(mode, errMsg = '') {
   };
   banner.style.cssText = `font-size:11px;padding:5px 20px;${styles[mode] || styles.local};display:flex;align-items:center;gap:10px;flex-shrink:0`;
   banner.innerHTML = `<span style="flex:1">${msgs[mode] || ''}</span>`;
-  const main = document.querySelector('.main');
+  const main = document.querySelectorAll('.main')[0]||document.getElementById('main-placeholder');
   if (main) main.insertBefore(banner, main.firstChild);
 }
 
@@ -3967,33 +3969,34 @@ function saveA_local(a) {
   if (i >= 0) accounts[i] = a;
 }
 
-const _origSaveA = saveA;
+// saveA: update local array + sync to DB if live
 function saveA(a) {
-  _origSaveA(a);
+  saveA_base(a);
   if (DB_MODE === 'live') saveAccountToDB(a);
 }
 
-const _origDoDelete = doDelete;
 function doDelete(id) {
   deleteAccountFromDB(id);
-  _origDoDelete(id);
+  accounts=accounts.filter(a=>a.id!==id);
+  closeMO();closeDP();render();toast('Account deleted');
 }
 
-const _origSaveAddMeeting = saveAddMeeting;
-async function saveAddMeeting(accountId) {
-  _origSaveAddMeeting(accountId);
+// saveAddMeeting is already defined above — patch it here for DB sync
+const _saveAddMeeting_orig = saveAddMeeting;
+saveAddMeeting = async function(accountId) {
+  _saveAddMeeting_orig(accountId);
   setTimeout(async () => {
     const a = getA(accountId); if (!a || !a.meetings || !a.meetings.length) return;
     await saveMeetingToDB(a.meetings[0], accountId);
     await saveAccountToDB(a);
   }, 100);
-}
+};
 
-const _origDeleteMeeting = deleteMeeting;
-function deleteMeeting(accountId, meetingId) {
+const _deleteMeeting_orig = deleteMeeting;
+deleteMeeting = function(accountId, meetingId) {
   deleteMeetingFromDB(meetingId);
-  _origDeleteMeeting(accountId, meetingId);
-}
+  _deleteMeeting_orig(accountId, meetingId);
+};
 
 // ── DB SETUP MODAL ────────────────────────────────────
 function openDBSetup() {
@@ -4067,7 +4070,7 @@ function applyDBConfig() {
 
 // ── INIT APP ──────────────────────────────────────────
 function initApp() {
-  if (!document.querySelector('.app')) { location.reload(); return; }
+  if (!document.querySelectorAll('.app')[0]) { location.reload(); return; }
   showDBBanner('live');
   render();
 }
