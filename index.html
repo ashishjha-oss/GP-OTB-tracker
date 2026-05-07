@@ -3778,16 +3778,39 @@ async function saveAccountToDB(a) {
     const payload = mapToDB(a);
     const isNumericId = typeof a.id === 'number';
 
-    if (isNumericId) {
-      // Numeric ID = local seed data, INSERT as new row
-      const result = await sbAPI('POST', 'accounts', {}, { ...payload, id: undefined });
-      if (result && result[0] && result[0].id) {
-        a.id = result[0].id; // replace numeric id with UUID
-        saveA_local(a);
+    try {
+      if (isNumericId) {
+        const result = await sbAPI('POST', 'accounts', {}, { ...payload, id: undefined });
+        if (result && result[0] && result[0].id) {
+          a.id = result[0].id;
+          saveA_local(a);
+        }
+      } else {
+        await sbAPI('UPSERT', 'accounts', {}, { ...payload, id: a.id });
       }
-    } else {
-      // UUID = already in DB, UPSERT
-      await sbAPI('UPSERT', 'accounts', {}, { ...payload, id: a.id });
+    } catch(saveErr) {
+      // If schema cache error — try with minimal required columns only
+      if (saveErr.message && saveErr.message.includes('schema cache')) {
+        console.warn('Schema cache issue — retrying with minimal columns');
+        const minPayload = {
+          company: payload.company,
+          stage: payload.stage||'handover',
+          status: payload.status||'green',
+          progress: payload.progress||0,
+          owner: payload.owner||null,
+          jira_key: payload.jira_key||null,
+          region: payload.region||'Global',
+        };
+        if (isNumericId) {
+          const r2 = await sbAPI('POST', 'accounts', {}, minPayload);
+          if (r2 && r2[0] && r2[0].id) { a.id = r2[0].id; saveA_local(a); }
+        } else {
+          await sbAPI('UPSERT', 'accounts', {}, { ...minPayload, id: a.id });
+        }
+        toast('Saved with minimal fields. Run SQL to add missing columns.', false);
+      } else {
+        throw saveErr;
+      }
     }
   } catch(e) {
     console.error('POST account error:', e.message);
@@ -3910,17 +3933,34 @@ function mapFromDB(r) {
   };
 }
 function mapToDB(a) {
-  return {
-    jira_key: a.jira, company: a.company, region: a.region,
-    stage: a.stage, status: a.status, mrr_tier: a.mrr, progress: a.prog,
-    planned_gl: a.plannedGL || null, expected_gl: a.expectedGL || null,
-    days_in_stage: a.daysInStage, next_milestone: a.nextMile,
-    blocker: a.blocker || null, owner: a.owner,
-    last_activity: a.lastAct || null, next_meeting: a.nextMeet || null,
-    open_points: a.openPts, audit_status: a.auditSt,
-    priority: a.priority, notes: a.notes || '',
-    checks: a.checks || [], nps: a.nps ?? null, sentiment: a.sentiment || 'neutral',
+  // Build payload — only include non-undefined values
+  const p={
+    jira_key: a.jira||null,
+    company: a.company,
+    region: a.region||'Global',
+    stage: a.stage||'handover',
+    status: a.status||'green',
+    mrr_tier: a.mrr||'Not Set',
+    progress: a.prog||0,
+    planned_gl: a.plannedGL||null,
+    expected_gl: a.expectedGL||null,
+    days_in_stage: a.daysInStage||0,
+    next_milestone: a.nextMile||null,
+    blocker: a.blocker||null,
+    owner: a.owner||null,
+    last_activity: a.lastAct||null,
+    next_meeting: a.nextMeet||null,
+    open_points: a.openPts||0,
+    audit_status: a.auditSt||'Not Started',
+    priority: a.priority||'Medium',
+    notes: a.notes||'',
+    checks: a.checks||[],
+    nps: a.nps??null,
+    sentiment: a.sentiment||'neutral',
   };
+  // Remove null values to avoid schema mismatch errors
+  Object.keys(p).forEach(k=>{if(p[k]===undefined)delete p[k];});
+  return p;
 }
 function mapMeetingFromDB(m)       { return { id: m.id, date: m.meeting_date, title: m.title || '', notes: m.notes || '' }; }
 function mapMeetingToDB(m, accId)  { return { id: typeof m.id === 'number' ? undefined : m.id, account_id: accId, meeting_date: m.date, title: m.title, notes: m.notes }; }
