@@ -1079,60 +1079,123 @@ function triggerImport(){
 function importJiraCSV(input){
   const file=input.files[0];if(!file)return;
   const reader=new FileReader();
-  reader.onload=function(e){
-    const lines=e.target.result.split('\n');
+  reader.onload=async function(e){
+    const csvText=e.target.result;
+    const lines=csvText.split('\n');
     if(lines.length<2){toast('CSV appears empty',false);return;}
+
+    toast('Processing CSV...');
+
+    // Parse CSV into account objects
     const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase());
-    let imported=0;
+    const newAccounts=[];
+
     for(let i=1;i<lines.length;i++){
       if(!lines[i].trim())continue;
       const row=parseCSVRow(lines[i]);
       if(row.length<2)continue;
-      const get=function(names){for(const n of names){const ix=headers.findIndex(h=>h.includes(n));if(ix>=0&&row[ix])return row[ix].trim();}return '';};
+      const get=function(names){
+        for(const n of names){
+          const ix=headers.findIndex(h=>h.includes(n));
+          if(ix>=0&&row[ix])return row[ix].trim();
+        }
+        return '';
+      };
       const company=get(['summary','company name','company']);
       if(!company)continue;
       const jiraKey=get(['issue key','key','id','jira']);
       const statusRaw=get(['status']).toLowerCase();
       const stageMap={'sales hand':0,'handover':0,'discovery':1,'integr':2,'config':3,'training':4,'onsite':5,'golive':6,'go-live':6,'live':6,'already live':6,'audit':7,'stab':8,'done':8};
       let stageId='discovery';
-      for(const k of Object.keys(stageMap)){if(statusRaw.includes(k)){stageId=STAGES[stageMap[k]]?STAGES[stageMap[k]].id:'discovery';break;}}
-      const existing=accounts.find(a=>a.jira===jiraKey||(company&&a.company.toLowerCase()===company.toLowerCase()));
-      if(existing){
-        existing.stage=stageId;
-        if(jiraKey)existing.jira=jiraKey;
-        const d=get(['due date','expected','go-live date']);
-        if(d)existing.expectedGL=d;
-        saveA(existing);imported++;
-      } else {
-        const si=STAGES.findIndex(s=>s.id===stageId);
-        const progMap=[8,18,38,52,65,78,95,88,100];
-        const newA={id:uid(),jira:jiraKey||('IMP-'+nextId),company,
-          region:get(['region'])||'Global',stage:stageId,status:'yellow',
-          mrr:get(['mrr'])||'Not Set',prog:progMap[si>=0?si:0]||20,
-          daysInStage:parseInt(get(['days']))||0,
-          nextMile:get(['milestone'])||'',
-          blocker:get(['blocker','pending reason','block'])||'',
-          owner:get(['assignee','owner'])||'',
-          plannedGL:get(['planned','due'])||'',
-          expectedGL:get(['expected','customer eta'])||'',
-          lastAct:new Date().toISOString().slice(0,10),
-          nextMeet:'',openPts:0,auditSt:'Not Started',
-          priority:get(['priority'])||'Medium',notes:'',
-          meetings:[],points:[],checks:[false,false,false,false,false]};
-        accounts.push(newA);imported++;
+      for(const k of Object.keys(stageMap)){
+        if(statusRaw.includes(k)){stageId=STAGES[stageMap[k]]?STAGES[stageMap[k]].id:'discovery';break;}
       }
+      const si=STAGES.findIndex(s=>s.id===stageId);
+      const progMap=[8,18,38,52,65,78,95,88,100];
+      newAccounts.push({
+        jira:jiraKey||('IMP-'+uid()),
+        company,
+        region:get(['region'])||'Global',
+        stage:stageId,
+        status:get(['status_color'])||'yellow',
+        mrr:get(['mrr','story points'])||'Not Set',
+        prog:progMap[si>=0?si:0]||20,
+        daysInStage:parseInt(get(['days','age']))||0,
+        nextMile:get(['milestone','fix versions'])||'',
+        blocker:get(['blocker','pending reason','block','flagged'])||'',
+        owner:get(['assignee','owner'])||'',
+        plannedGL:get(['planned','due date'])||'',
+        expectedGL:get(['expected','customer eta','due date'])||'',
+        lastAct:new Date().toISOString().slice(0,10),
+        nextMeet:'',openPts:0,auditSt:'Not Started',
+        priority:get(['priority'])||'Medium',
+        notes:get(['description','comment'])||'',
+        meetings:[],points:[],
+        checks:[false,false,false,false,false],
+      });
     }
-    input.value='';
-    render();
-    toast('Imported '+imported+' accounts'+(DB_MODE==='live'?' — saving to database...':''));
-    // Save all newly imported accounts to DB asynchronously
-    if (DB_MODE === 'live') {
-      (async function(){
-        for (const a of accounts) {
-          if (typeof a.id === 'number') await saveAccountToDB(a).catch(()=>{});
+
+    if(!newAccounts.length){toast('No valid accounts found in CSV',false);return;}
+
+    if(DB_MODE==='live'){
+      // ── SUPABASE: Delete all existing accounts then insert fresh ──
+      toast('Clearing old data and uploading '+newAccounts.length+' accounts...');
+      try{
+        // Step 1: Delete all existing accounts in DB
+        // (cascade deletes meetings and open_points too)
+        const existing=await sbAPI('GET','accounts',{select:'id'});
+        if(existing&&existing.length){
+          for(const row of existing){
+            await sbAPI('DELETE','accounts',{id:'eq.'+row.id}).catch(()=>{});
+          }
         }
-        toast('Imported '+imported+' accounts saved to database');
-      })();
+
+        // Step 2: Insert all new accounts
+        let saved=0;
+        const insertedAccounts=[];
+        for(const a of newAccounts){
+          try{
+            const payload=mapToDB(a);
+            const result=await sbAPI('POST','accounts',{},{...payload,id:undefined});
+            if(result&&result[0]){
+              a.id=result[0].id; // assign UUID from DB
+              insertedAccounts.push(a);
+              saved++;
+            }
+          }catch(e){
+            console.warn('Insert failed for '+a.company+':',e.message);
+            a.id=uid(); // fallback local ID
+            insertedAccounts.push(a);
+          }
+        }
+
+        // Step 3: Also save raw CSV to integrations table for re-use
+        await saveIntegrationToDB('csv_backup',{
+          csv:csvText,
+          importedAt:new Date().toISOString(),
+          accountCount:saved,
+        });
+
+        accounts=insertedAccounts;
+        input.value='';
+        render();
+        toast(saved+' accounts saved to Supabase — data persists on refresh ✓');
+
+      }catch(e){
+        // Fallback: save locally only
+        console.error('DB import error:',e.message);
+        accounts=newAccounts.map(a=>({...a,id:uid()}));
+        input.value='';
+        render();
+        toast('Imported locally (DB error: '+e.message+')',false);
+      }
+
+    } else {
+      // Local mode — just replace in memory
+      accounts=newAccounts.map(a=>({...a,id:uid()}));
+      input.value='';
+      render();
+      toast('Imported '+newAccounts.length+' accounts (local mode — connect DB to persist)');
     }
   };
   reader.readAsText(file);
@@ -3250,7 +3313,8 @@ async function sbAPI(method, table, params = {}, body = null) {
 
   const headers = {
     'apikey':        SB_KEY,
-    'Authorization': 'Bearer '+SB_KEY,
+    // New sb_publishable keys must NOT go in Authorization header
+    // Only send apikey header — leave Authorization empty for anon access
     'Content-Type':  'application/json',
     'Prefer':        'return=representation',
   };
@@ -3259,6 +3323,10 @@ async function sbAPI(method, table, params = {}, body = null) {
   if (method === 'UPSERT') {
     headers['Prefer'] = 'resolution=merge-duplicates,return=representation';
     method = 'POST';
+  }
+  // For DELETE, no body needed
+  if (method === 'DELETE') {
+    delete headers['Prefer'];
   }
 
   const opts = { method, headers };
@@ -3562,10 +3630,16 @@ async function loadFromDB() {
     if (accs && accs.length) {
       // DB has data — load it
       accounts = accs.map(mapFromDB);
+      console.log('Loaded ' + accounts.length + ' accounts from Supabase');
     } else {
-      // DB is empty — seed with local accounts
-      console.log('DB empty — seeding ' + accounts.length + ' accounts...');
-      await seedAccountsToDB();
+      // DB is empty — check if we have a CSV backup to restore
+      console.log('DB empty — checking for CSV backup...');
+      const restored = await restoreFromCSVBackup();
+      if (!restored) {
+        // No backup — seed with built-in demo accounts
+        console.log('No backup found — seeding demo accounts...');
+        await seedAccountsToDB();
+      }
     }
 
     // GET /rest/v1/meetings?order=meeting_date.desc
@@ -3598,6 +3672,84 @@ async function loadFromDB() {
 }
 
 // ── POST: CREATE ACCOUNT ──────────────────────────────
+async function restoreFromCSVBackup(){
+  // Try to restore from the last imported CSV stored in integrations table
+  if(DB_MODE!=='live') return false;
+  try{
+    const rows=await sbAPI('GET','integrations',{service_name:'eq.csv_backup',select:'*'});
+    if(!rows||!rows.length) return false;
+    const backup=JSON.parse(rows[0].config||'{}');
+    if(!backup.csv) return false;
+
+    console.log('Restoring from CSV backup ('+backup.accountCount+' accounts)...');
+    toast('Restoring your data from last import...');
+
+    // Re-parse the CSV
+    const lines=backup.csv.split('\n');
+    if(lines.length<2) return false;
+    const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase());
+    const newAccounts=[];
+
+    for(let i=1;i<lines.length;i++){
+      if(!lines[i].trim())continue;
+      const row=parseCSVRow(lines[i]);
+      if(row.length<2)continue;
+      const get=function(names){
+        for(const n of names){
+          const ix=headers.findIndex(h=>h.includes(n));
+          if(ix>=0&&row[ix])return row[ix].trim();
+        }
+        return '';
+      };
+      const company=get(['summary','company name','company']);
+      if(!company)continue;
+      const jiraKey=get(['issue key','key','id','jira']);
+      const statusRaw=get(['status']).toLowerCase();
+      const stageMap={'sales hand':0,'handover':0,'discovery':1,'integr':2,'config':3,'training':4,'onsite':5,'golive':6,'go-live':6,'live':6,'already live':6,'audit':7,'stab':8,'done':8};
+      let stageId='discovery';
+      for(const k of Object.keys(stageMap)){
+        if(statusRaw.includes(k)){stageId=STAGES[stageMap[k]]?STAGES[stageMap[k]].id:'discovery';break;}
+      }
+      const si=STAGES.findIndex(s=>s.id===stageId);
+      const progMap=[8,18,38,52,65,78,95,88,100];
+      newAccounts.push({
+        jira:jiraKey||('IMP-'+uid()),company,
+        region:get(['region'])||'Global',stage:stageId,status:'yellow',
+        mrr:get(['mrr'])||'Not Set',prog:progMap[si>=0?si:0]||20,
+        daysInStage:parseInt(get(['days','age']))||0,
+        nextMile:get(['milestone'])||'',
+        blocker:get(['blocker','pending reason','block'])||'',
+        owner:get(['assignee','owner'])||'',
+        plannedGL:get(['planned','due date'])||'',
+        expectedGL:get(['expected','customer eta','due date'])||'',
+        lastAct:new Date().toISOString().slice(0,10),
+        nextMeet:'',openPts:0,auditSt:'Not Started',
+        priority:get(['priority'])||'Medium',notes:'',
+        meetings:[],points:[],checks:[false,false,false,false,false],
+      });
+    }
+
+    if(!newAccounts.length) return false;
+
+    // Insert into accounts table
+    let saved=0;
+    const inserted=[];
+    for(const a of newAccounts){
+      try{
+        const payload=mapToDB(a);
+        const result=await sbAPI('POST','accounts',{},{...payload,id:undefined});
+        if(result&&result[0]){a.id=result[0].id;inserted.push(a);saved++;}
+      }catch(e){a.id=uid();inserted.push(a);}
+    }
+    accounts=inserted;
+    toast('Restored '+saved+' accounts from last CSV import ✓');
+    return true;
+  }catch(e){
+    console.warn('CSV restore error:',e.message);
+    return false;
+  }
+}
+
 async function seedAccountsToDB() {
   // Bulk insert all local accounts into Supabase
   let seeded = 0;
