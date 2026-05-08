@@ -471,7 +471,7 @@ function renderDash(){
   }).join('');
 
   const critRows=accounts.filter(a=>a.status==='red').map(a=>`
-    <tr onclick="openDP(${a.id})" style="cursor:pointer">
+    <tr onclick="openDP('${a.id}')" style="cursor:pointer">
       <td><div class="fw5 fn">${a.company}</div><div class="fx-xs tc-3">${a.jira}</div></td>
       <td><span class="sc">${sn(a.stage)}</span></td>
       <td class="fn" style="color:var(--red);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.blocker||'High priority'}</td>
@@ -527,7 +527,7 @@ function renderAccounts(){
 
   const rows=list.map(a=>{
     const s=sl(a.stage),over=a.daysInStage>s;
-    return `<tr onclick="openDP(${a.id})" style="cursor:pointer">
+    return `<tr onclick="openDP('${a.id}')" style="cursor:pointer">
       <td style="min-width:150px"><div class="fw5 fn">${a.company}</div><div class="fx-xs tc-3">${a.jira} &middot; ${a.region}</div></td>
       <td><span class="sc">${sn(a.stage)}</span></td>
       <td>${badge(a.status)}</td>
@@ -542,8 +542,8 @@ function renderAccounts(){
       <td style="text-align:center" class="${a.openPts>2?'t-r':a.openPts>0?'t-a':'tc-3'} fx-s">${a.openPts}</td>
       <td>
         <div class="fx gap1" onclick="event.stopPropagation()">
-          <button class="btn btn-sm" onclick="openEditMO(${a.id})" title="Edit">&#9998;</button>
-          <button class="btn btn-sm btn-r" onclick="confirmDelete(${a.id})" title="Delete">&#128465;</button>
+          <button class="btn btn-sm" onclick="openEditMO('${a.id}')" title="Edit">&#9998;</button>
+          <button class="btn btn-sm btn-r" onclick="confirmDelete('${a.id}')" title="Delete">&#128465;</button>
         </div>
       </td>
     </tr>`;}).join('');
@@ -587,7 +587,7 @@ function renderKanban(){
   const cols=STAGES.map(s=>{
     const accs=accounts.filter(a=>a.stage===s.id);
     const cards=accs.map(a=>`
-      <div class="kb-card" onclick="openDP(${a.id})">
+      <div class="kb-card" onclick="openDP('${a.id}')">
         <div class="fx fxa fxb gap2 mb2">${badge(a.status)}<span class="fx-xs tc-3">${a.jira}</span></div>
         <div class="fn fw5 mb1 trunc">${a.company}</div>
         <div class="fx-xs tc-3 mb2">${a.region}</div>
@@ -761,7 +761,7 @@ function renderAlerts(){
   document.getElementById('ps').textContent=`${als.filter(x=>x.t==='r').length} critical &middot; ${als.filter(x=>x.t==='a').length} warnings`;
   if(!als.length){document.getElementById('pb').innerHTML='<div style="text-align:center;color:var(--tx3);padding:40px;font-size:14px">No active alerts &#127881;</div>';return;}
   document.getElementById('pb').innerHTML=als.map(x=>`
-    <div class="al al-${x.t}" onclick="openDP(${x.a.id})">
+    <div class="al al-${x.t}" onclick="openDP('${x.a.id}')">
       <div class="f1">
         <div class="fw6">${x.a.company} (${x.a.jira})</div>
         <div class="mt1">${x.msg}</div>
@@ -1275,7 +1275,7 @@ function renderJiraSettings(){
   const openPtsList=accounts.filter(function(a){return a.openPts>0;}).map(function(a){
     return '<tr><td class="fn fw5">'+a.company+'</td><td><span class="sc">'+sn(a.stage)+'</span></td>'
       +'<td style="color:var(--amber)">'+a.openPts+' open</td>'
-      +'<td><button class="btn btn-xs btn-p" onclick="pushOpenPointsToJira('+a.id+')">Push to Jira</button></td></tr>';
+      +'<td><button class="btn btn-xs btn-p" onclick="pushOpenPointsToJira(\"'+a.id+'\")" >Push to Jira</button></td></tr>';
   }).join('');
 
   return '<div class="sec-title mb3">Jira Configuration</div>'
@@ -1411,7 +1411,7 @@ function openLinkAccountsMO(groupIdx){
   const g=waGroups[groupIdx];
   const opts=accounts.map(a=>`
     <label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd);cursor:pointer;font-size:12px">
-      <input type="checkbox" ${g.accountIds.includes(a.id)?'checked':''} onchange="toggleWALink(${groupIdx},${a.id},this.checked)" style="width:14px;height:14px">
+      <input type="checkbox" ${g.accountIds.includes(a.id)?'checked':''} onchange="toggleWALink(${groupIdx},'${a.id}',this.checked)" style="width:14px;height:14px">
       <span class="f1">${a.company} <span class="fx-xs tc-3">(${sn(a.stage)}, ${a.openPts} open pts)</span></span>
       ${badge(a.status)}
     </label>`).join('');
@@ -1582,7 +1582,7 @@ function renderCalSettings(){
   ${accounts.filter(a=>!a.nextMeet).map(a=>`
     <div class="fx fxa fxb card-sm mb2">
       <div><div class="fn fw5">${a.company}</div><div class="fx-xs tc-3">Last activity: ${fmtD(a.lastAct)}</div></div>
-      <button class="btn btn-xs btn-p" onclick="openAddMeetingMO(${a.id});closeMO&&closeMO()">Schedule Meeting</button>
+      <button class="btn btn-xs btn-p" onclick="openAddMeetingMO('${a.id}');closeMO&&closeMO()">Schedule Meeting</button>
     </div>`).join('')||'<div class="fx-s tc-3">All accounts have meetings scheduled</div>'}`;
 }
 
@@ -1800,9 +1800,9 @@ function renderPaneEdit(a){
       <div class="fl" style="grid-column:span 2"><label>Notes</label><textarea id="e-notes" rows="3">${a.notes||''}</textarea></div>
     </div>
     <div class="fx gap2 mt3">
-      <button class="btn btn-p" onclick="saveEdit(${a.id})">Save Changes</button>
+      <button class="btn btn-p" onclick="saveEdit('${a.id}')">Save Changes</button>
       <button class="btn" onclick="setPTab('overview')">Cancel</button>
-      <button class="btn btn-r" style="margin-left:auto" onclick="confirmDelete(${a.id})">Delete Account</button>
+      <button class="btn btn-r" style="margin-left:auto" onclick="confirmDelete('${a.id}')">Delete Account</button>
     </div>
   </div>`;
 }
@@ -1841,12 +1841,12 @@ function renderPaneMeetings(a){
     <div class="card-sm mb2">
       <div class="fx fxa fxb mb1">
         <div class="fx fxa gap2"><span class="t-b">&#128197;</span><span class="fw5 fn">${fmtD(m.date)}</span>${m.title?`<span class="fx-xs tc-3">&mdash; ${m.title}</span>`:''}</div>
-        <button class="btn btn-xs btn-r" onclick="deleteMeeting(${a.id},${m.id})">&#10005;</button>
+        <button class="btn btn-xs btn-r" onclick="deleteMeeting('${a.id}','${m.id}')">&#10005;</button>
       </div>
       ${m.notes?`<div class="fx-s tc-2">${m.notes}</div>`:''}
     </div>`).join('');
   return `<div style="padding:14px 18px">
-    <button class="btn btn-p btn-sm mb3" onclick="openAddMeetingMO(${a.id})">+ Log Meeting</button>
+    <button class="btn btn-p btn-sm mb3" onclick="openAddMeetingMO('${a.id}')">+ Log Meeting</button>
     ${rows||'<div class="fx-s tc-3" style="text-align:center;padding:20px">No meetings logged yet</div>'}
   </div>`;
 }
@@ -1863,12 +1863,12 @@ function renderPanePoints(a){
         ${p.notes?`<div class="fx-xs tc-2 mt1">${p.notes}</div>`:''}
       </div>
       <div class="fx gap1">
-        ${showResolve?`<button class="btn btn-xs btn-g" onclick="resolvePoint(${a.id},${p.id})">Resolve</button>`:''}
-        <button class="btn btn-xs btn-r" onclick="deletePoint(${a.id},${p.id})">&#10005;</button>
+        ${showResolve?`<button class="btn btn-xs btn-g" onclick="resolvePoint('${a.id}','${p.id}')">Resolve</button>`:''}
+        <button class="btn btn-xs btn-r" onclick="deletePoint('${a.id}','${p.id}')">&#10005;</button>
       </div>
     </div>`;
   return `<div style="padding:14px 18px">
-    <button class="btn btn-p btn-sm mb3" onclick="openAddPointMO(${a.id})">+ Add Point</button>
+    <button class="btn btn-p btn-sm mb3" onclick="openAddPointMO('${a.id}')">+ Add Point</button>
     ${open.length?open.map(p=>mkRow(p,true)).join(''):'<div class="fx-s tc-3 mb2">No open points</div>'}
     ${resolved.length?`<div class="divider"></div><div class="fx-xs tc-3 mb2">Resolved (${resolved.length})</div>${resolved.map(p=>mkRow(p,false)).join('')}`:''}
   </div>`;
@@ -2137,7 +2137,7 @@ function renderHealth(){
     const sm=SENTIMENTS.find(s=>s.k===a.sentiment)||SENTIMENTS[2];
     const npsColor=a.nps===null?'var(--tx3)':a.nps>=9?'var(--green)':a.nps>=7?'var(--amber)':'var(--red)';
     const churnBadge=a.churnRisk==='High'?'bx-r':a.churnRisk==='Medium'?'bx-a':'bx-g';
-    return `<tr onclick="openHealthDetail(${a.id})" style="cursor:pointer">
+    return `<tr onclick="openHealthDetail('${a.id}')" style="cursor:pointer">
       <td><div class="fw5 fn">${a.company}</div><div class="fx-xs tc-3">${a.jira}</div></td>
       <td><span class="sc">${sn(a.stage)}</span></td>
       <td>${badge(a.status)}</td>
@@ -2907,7 +2907,7 @@ function renderSingleAccountPB(a){
           ${isCurrent?'<span class="bx bx-b" style="font-size:9px">Current Stage</span>':''}
           ${hasCustom?'<span class="bx bx-g" style="font-size:9px">&#9998; Customized</span>':'<span class="bx bx-n" style="font-size:9px">Using global</span>'}
         </div>
-        <button class="btn btn-xs btn-p" onclick="openAccountPBEditor(${a.id},'${s.id}')">&#9998; Edit for ${a.company}</button>
+        <button class="btn btn-xs btn-p" onclick="openAccountPBEditor('${a.id}','${s.id}')">&#9998; Edit for ${a.company}</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:3px">
         ${steps.slice(0,4).map((st,i)=>`
@@ -2927,7 +2927,7 @@ function renderSingleAccountPB(a){
       <div class="fn fw6">${a.company}</div>
       <div class="fx-xs tc-2">${a.jira} &middot; ${sn(a.stage)} &middot; ${badge(a.status)} &middot; Owner: ${a.owner||'—'}</div>
     </div>
-    <button class="btn btn-p btn-sm" onclick="openAccountPBEditor(${a.id},'${a.stage}')">&#9998; Edit Current Stage Playbook</button>
+    <button class="btn btn-p btn-sm" onclick="openAccountPBEditor('${a.id}','${a.stage}')">&#9998; Edit Current Stage Playbook</button>
   </div>
   ${stageCards}`;
 }
