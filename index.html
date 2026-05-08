@@ -211,6 +211,7 @@ tr:last-child td{border-bottom:none}
       <button class="ni" id="ni-capacity"  onclick="goPage('capacity')"><span class="ni-ic">&#128202;</span><span class="ni-tx">Capacity</span></button>
       <button class="ni" id="ni-playbooks" onclick="goPage('playbooks')"><span class="ni-ic">&#128214;</span><span class="ni-tx">Playbooks</span></button>
       <button class="ni" id="ni-reports"   onclick="goPage('reports')"><span class="ni-ic">&#128196;</span><span class="ni-tx">Reports</span></button>
+      <button class="ni" id="ni-docs"      onclick="goPage('docs')"><span class="ni-ic">&#128240;</span><span class="ni-tx">Docs</span></button>
       <button class="ni" id="ni-settings"  onclick="goPage('settings')"><span class="ni-ic">&#9881;</span><span class="ni-tx">Settings</span></button>
     </nav>
     <div class="sb-bot">
@@ -432,7 +433,7 @@ function goPage(p){
 
 function render(){
   updateNB();
-  ({dashboard:renderDash,accounts:renderAccounts,kanban:renderKanban,lifecycle:renderLifecycle,alerts:renderAlerts,settings:renderSettings,health:renderHealth,capacity:renderCapacity,playbooks:renderPlaybooks,reports:renderReports}[curPage]||renderDash)();
+  ({dashboard:renderDash,accounts:renderAccounts,kanban:renderKanban,lifecycle:renderLifecycle,alerts:renderAlerts,settings:renderSettings,health:renderHealth,capacity:renderCapacity,playbooks:renderPlaybooks,reports:renderReports,docs:renderDocs}[curPage]||renderDash)();
 }
 
 function updateNB(){
@@ -3193,6 +3194,664 @@ function resetStages(){
   STAGES.splice(0,STAGES.length,...JSON.parse(JSON.stringify(DEFAULT_STAGES_BACKUP)));
   renderLifecycle();
   toast('Stages reset to default');
+}
+
+// ═══════════════════════════════════════════════════════
+// ONBOARDING DOCUMENTS MODULE
+// ═══════════════════════════════════════════════════════
+
+let docCategory='all';
+let docSearch='';
+let selectedDoc=null;
+
+const ONBOARDING_DOCS=[
+  {
+    id:'doc1', category:'process', icon:'📋', tag:'Process',
+    title:'OTB Implementation Overview',
+    summary:'End-to-end implementation methodology for GaragePlug OTB customers.',
+    content:`
+<h2>OTB Implementation Overview</h2>
+<p>The OTB (On The Board) implementation follows a structured 9-stage methodology designed to bring new customers from sales handover to full stabilization within 90 days.</p>
+
+<h3>Implementation Philosophy</h3>
+<ul>
+<li><strong>Customer First:</strong> Every stage is designed to minimize disruption to the customer's operations.</li>
+<li><strong>Milestone-Driven:</strong> Clear entry and exit criteria for each stage ensure no stage is skipped.</li>
+<li><strong>CSM Accountability:</strong> Each account has a dedicated CSM responsible for success.</li>
+<li><strong>Data-Driven:</strong> Progress tracked in real time via this tracker.</li>
+</ul>
+
+<h3>The 9 Stages</h3>
+<table style="width:100%;border-collapse:collapse;font-size:13px">
+<thead><tr style="background:var(--bg2)"><th style="padding:8px;text-align:left;border:1px solid var(--bd)">Stage</th><th style="padding:8px;text-align:left;border:1px solid var(--bd)">Duration</th><th style="padding:8px;text-align:left;border:1px solid var(--bd)">Owner</th><th style="padding:8px;text-align:left;border:1px solid var(--bd)">Key Milestone</th></tr></thead>
+<tbody>
+<tr><td style="padding:8px;border:1px solid var(--bd)">1. Sales Handover</td><td style="padding:8px;border:1px solid var(--bd)">5 days</td><td style="padding:8px;border:1px solid var(--bd)">CSM + Sales</td><td style="padding:8px;border:1px solid var(--bd)">Signed SOP, intro call done</td></tr>
+<tr><td style="padding:8px;border:1px solid var(--bd)">2. Discovery & Review</td><td style="padding:8px;border:1px solid var(--bd)">10 days</td><td style="padding:8px;border:1px solid var(--bd)">CSM</td><td style="padding:8px;border:1px solid var(--bd)">Business audit completed</td></tr>
+<tr><td style="padding:8px;border:1px solid var(--bd)">3. Integration Setup</td><td style="padding:8px;border:1px solid var(--bd)">14 days</td><td style="padding:8px;border:1px solid var(--bd)">Integration Team</td><td style="padding:8px;border:1px solid var(--bd)">All integrations live & tested</td></tr>
+<tr><td style="padding:8px;border:1px solid var(--bd)">4. Configuration</td><td style="padding:8px;border:1px solid var(--bd)">12 days</td><td style="padding:8px;border:1px solid var(--bd)">CSM</td><td style="padding:8px;border:1px solid var(--bd)">System configured, UAT passed</td></tr>
+<tr><td style="padding:8px;border:1px solid var(--bd)">5. Training</td><td style="padding:8px;border:1px solid var(--bd)">7 days</td><td style="padding:8px;border:1px solid var(--bd)">CSM</td><td style="padding:8px;border:1px solid var(--bd)">All users trained & certified</td></tr>
+<tr><td style="padding:8px;border:1px solid var(--bd)">6. Onsite Implementation</td><td style="padding:8px;border:1px solid var(--bd)">5 days</td><td style="padding:8px;border:1px solid var(--bd)">CSM + On-site</td><td style="padding:8px;border:1px solid var(--bd)">Physical setup complete</td></tr>
+<tr><td style="padding:8px;border:1px solid var(--bd)">7. Already Live</td><td style="padding:8px;border:1px solid var(--bd)">30 days</td><td style="padding:8px;border:1px solid var(--bd)">CSM</td><td style="padding:8px;border:1px solid var(--bd)">Go-live confirmed, monitoring active</td></tr>
+<tr><td style="padding:8px;border:1px solid var(--bd)">8. Audit & Validation</td><td style="padding:8px;border:1px solid var(--bd)">7 days</td><td style="padding:8px;border:1px solid var(--bd)">CSM + QA</td><td style="padding:8px;border:1px solid var(--bd)">Audit passed, sign-off received</td></tr>
+<tr><td style="padding:8px;border:1px solid var(--bd)">9. Stabilization</td><td style="padding:8px;border:1px solid var(--bd)">30 days</td><td style="padding:8px;border:1px solid var(--bd)">CSM</td><td style="padding:8px;border:1px solid var(--bd)">Account stable, NPS ≥ 8</td></tr>
+</tbody></table>
+
+<h3>Success Metrics</h3>
+<ul>
+<li>Time to Go-Live: Target 60 days from handover</li>
+<li>NPS at Stabilization: ≥ 8/10</li>
+<li>Open Points at Go-Live: 0 critical, &lt;3 total</li>
+<li>Training Completion: 100% of identified users</li>
+</ul>`
+  },
+  {
+    id:'doc2', category:'sop', icon:'📝', tag:'SOP',
+    title:'Sales Handover SOP',
+    summary:'Standard operating procedure for handing over a new account from Sales to CS.',
+    content:`
+<h2>Sales Handover SOP</h2>
+<p><strong>Timeline:</strong> Must be completed within 5 business days of contract signature.</p>
+
+<h3>Step 1: Internal Handover Call (Day 1)</h3>
+<ul>
+<li>Sales AE briefs the assigned CSM on account background</li>
+<li>Share signed contract, MSA, and SOW documents</li>
+<li>Document customer's primary use case and key stakeholders</li>
+<li>Identify any special commitments made during sales cycle</li>
+<li>CSM acknowledges account in OTB Tracker</li>
+</ul>
+
+<h3>Step 2: Kickoff Email (Day 1-2)</h3>
+<ul>
+<li>CSM sends welcome email within 24 hours of handover</li>
+<li>Introduce the implementation team</li>
+<li>Share implementation timeline overview</li>
+<li>Request customer's primary contact and technical contact details</li>
+<li>Attach Implementation Checklist PDF</li>
+</ul>
+
+<h3>Step 3: Kickoff Call (Day 2-3)</h3>
+<p>Agenda:</p>
+<ul>
+<li>Introductions (15 min)</li>
+<li>Customer goals and success criteria (20 min)</li>
+<li>Implementation timeline walkthrough (15 min)</li>
+<li>Next steps and action items (10 min)</li>
+</ul>
+
+<h3>Step 4: Discovery Questionnaire (Day 3-5)</h3>
+<ul>
+<li>Send discovery questionnaire to customer</li>
+<li>Topics: current workflow, integrations needed, number of users, locations</li>
+<li>Set deadline for response: 3 business days</li>
+</ul>
+
+<h3>Exit Criteria</h3>
+<ul>
+<li>✅ SOP document signed by customer</li>
+<li>✅ Kickoff call completed and notes shared</li>
+<li>✅ Discovery questionnaire received</li>
+<li>✅ All stakeholders identified in tracker</li>
+<li>✅ Jira ticket created for account</li>
+</ul>
+
+<h3>Common Blockers</h3>
+<ul>
+<li>Customer unresponsive → Escalate to Sales AE after 48 hours</li>
+<li>Incomplete contract → Loop in Legal before proceeding</li>
+<li>Special commitments undocumented → Block progress until documented</li>
+</ul>`
+  },
+  {
+    id:'doc3', category:'sop', icon:'🔧', tag:'SOP',
+    title:'Integration Setup SOP',
+    summary:'Step-by-step guide for setting up technical integrations — DMS, ERP, payment gateways.',
+    content:`
+<h2>Integration Setup SOP</h2>
+<p><strong>Owner:</strong> Integration Team &nbsp;|&nbsp; <strong>Timeline:</strong> 14 days</p>
+
+<h3>Pre-requisites</h3>
+<ul>
+<li>Discovery questionnaire completed</li>
+<li>Customer IT contact identified</li>
+<li>Integration specifications approved</li>
+</ul>
+
+<h3>Day 1-3: Environment Setup</h3>
+<ul>
+<li>Provision sandbox environment for customer</li>
+<li>Set up API keys and credentials</li>
+<li>Share integration documentation with customer IT team</li>
+<li>Schedule daily standup with Integration Team + Customer</li>
+</ul>
+
+<h3>Day 4-10: Integration Development</h3>
+<ul>
+<li>DMS Integration (Odoo/SAP/Custom)</li>
+<li>Payment Gateway setup (if applicable)</li>
+<li>Inventory sync configuration</li>
+<li>User authentication setup (SSO/LDAP if needed)</li>
+<li>Daily standup to track progress</li>
+</ul>
+
+<h3>Day 11-13: Testing & UAT</h3>
+<ul>
+<li>Internal QA testing — all integration endpoints</li>
+<li>Customer UAT sign-off session</li>
+<li>Performance testing under load</li>
+<li>Error handling verification</li>
+</ul>
+
+<h3>Day 14: Sign-off</h3>
+<ul>
+<li>Customer signs Integration Completion form</li>
+<li>Handover to CSM for Configuration stage</li>
+<li>Document any known limitations</li>
+</ul>
+
+<h3>Integration Checklist (17 items)</h3>
+<ol>
+<li>Daily standup established ✓</li>
+<li>Weekly integration review call ✓</li>
+<li>API documentation shared ✓</li>
+<li>Sandbox access granted ✓</li>
+<li>DMS connector configured ✓</li>
+<li>Payment gateway live ✓</li>
+<li>Inventory sync tested ✓</li>
+<li>User auth configured ✓</li>
+<li>Error logging enabled ✓</li>
+<li>Data migration plan approved ✓</li>
+<li>Webhook endpoints tested ✓</li>
+<li>Performance benchmarks met ✓</li>
+<li>Security review passed ✓</li>
+<li>UAT environment ready ✓</li>
+<li>UAT sign-off received ✓</li>
+<li>Production credentials secured ✓</li>
+<li>Integration handover call done ✓</li>
+</ol>`
+  },
+  {
+    id:'doc4', category:'sop', icon:'🎓', tag:'SOP',
+    title:'Training SOP',
+    summary:'How to conduct effective training sessions to ensure all users are certified before go-live.',
+    content:`
+<h2>Training SOP</h2>
+<p><strong>Timeline:</strong> 7 days &nbsp;|&nbsp; <strong>Owner:</strong> CSM</p>
+
+<h3>Training Audience</h3>
+<ul>
+<li><strong>Admin Users:</strong> Full system training (3-4 hours)</li>
+<li><strong>Floor Staff:</strong> Role-specific training (1-2 hours)</li>
+<li><strong>Management:</strong> Reports and dashboard overview (1 hour)</li>
+</ul>
+
+<h3>Training Delivery Methods</h3>
+<ul>
+<li>Live virtual training via Zoom/Teams</li>
+<li>On-site training (for Onsite Implementation stage)</li>
+<li>Recorded video sessions shared post-training</li>
+<li>GaragePlug Help Center access provided</li>
+</ul>
+
+<h3>Training Modules</h3>
+<ol>
+<li><strong>Module 1 — System Navigation</strong> (30 min): Dashboard, menus, basic operations</li>
+<li><strong>Module 2 — Job Cards & Work Orders</strong> (45 min): Creating, updating, closing job cards</li>
+<li><strong>Module 3 — Inventory Management</strong> (30 min): Stock tracking, reorder alerts</li>
+<li><strong>Module 4 — Customer Management</strong> (20 min): CRM features, history</li>
+<li><strong>Module 5 — Reports & Analytics</strong> (30 min): Key reports, KPI tracking</li>
+<li><strong>Module 6 — Integrations</strong> (20 min): DMS sync, payment processing</li>
+</ol>
+
+<h3>Certification Process</h3>
+<ul>
+<li>Each user completes a 20-question assessment after training</li>
+<li>Passing score: 80% or above</li>
+<li>Failed users: Additional 1-on-1 session provided</li>
+<li>Training Completion Certificate issued per user</li>
+</ul>
+
+<h3>Exit Criteria</h3>
+<ul>
+<li>✅ 100% of identified users trained</li>
+<li>✅ All admins certified (80%+ assessment score)</li>
+<li>✅ Training recording shared with customer</li>
+<li>✅ Help Center access confirmed for all users</li>
+<li>✅ Customer sign-off on training completion</li>
+</ul>`
+  },
+  {
+    id:'doc5', category:'checklist', icon:'✅', tag:'Checklist',
+    title:'Go-Live Readiness Checklist',
+    summary:'14-point checklist to verify an account is ready for go-live before flipping the switch.',
+    content:`
+<h2>Go-Live Readiness Checklist</h2>
+<p>All 14 items must be checked before marking an account as "Already Live".</p>
+
+<h3>Technical Readiness</h3>
+<ul>
+<li>☐ All integrations tested and confirmed live in production</li>
+<li>☐ Data migration completed and verified</li>
+<li>☐ User accounts created for all staff</li>
+<li>☐ Roles and permissions configured correctly</li>
+<li>☐ Backup and recovery plan in place</li>
+<li>☐ Performance tested under expected load</li>
+</ul>
+
+<h3>Business Readiness</h3>
+<ul>
+<li>☐ All users trained and certified</li>
+<li>☐ SOPs updated to reflect new system</li>
+<li>☐ Customer success metrics defined and baselined</li>
+<li>☐ Escalation contact list shared with customer</li>
+<li>☐ Support ticket process explained</li>
+</ul>
+
+<h3>Sign-offs</h3>
+<ul>
+<li>☐ Customer IT sign-off received</li>
+<li>☐ Customer Operations Manager sign-off received</li>
+<li>☐ CSM internal approval obtained</li>
+</ul>
+
+<h3>Post Go-Live Plan</h3>
+<ul>
+<li>Daily check-in calls for first 7 days</li>
+<li>Weekly review calls for first month</li>
+<li>NPS survey sent at Day 30</li>
+<li>Transition to standard CS cadence at Day 45</li>
+</ul>`
+  },
+  {
+    id:'doc6', category:'checklist', icon:'🔍', tag:'Checklist',
+    title:'Audit & Validation Checklist',
+    summary:'5-point audit checklist for QA validation before moving to Stabilization.',
+    content:`
+<h2>Audit & Validation Checklist</h2>
+<p><strong>Timeline:</strong> 7 days &nbsp;|&nbsp; <strong>Owner:</strong> CSM + QA</p>
+
+<h3>Audit Scope</h3>
+<p>The audit validates that the implementation meets quality standards before the account is considered stable.</p>
+
+<h3>Audit Items</h3>
+<ol>
+<li><strong>Data Integrity Audit</strong>
+  <ul><li>Verify data migration accuracy (sample check 10% of records)</li>
+  <li>Confirm no data loss during migration</li>
+  <li>Validate historical data accessibility</li></ul>
+</li>
+<li><strong>Integration Health Check</strong>
+  <ul><li>All integration endpoints responding within SLA</li>
+  <li>Error rate below 0.1%</li>
+  <li>Sync delays within acceptable range</li></ul>
+</li>
+<li><strong>User Adoption Metrics</strong>
+  <ul><li>Daily active users ≥ 80% of trained users</li>
+  <li>Core workflows being used (job cards, inventory)</li>
+  <li>No critical support tickets open</li></ul>
+</li>
+<li><strong>Performance Audit</strong>
+  <ul><li>System response time &lt; 2 seconds</li>
+  <li>Report generation &lt; 5 seconds</li>
+  <li>No critical bugs in last 7 days</li></ul>
+</li>
+<li><strong>Customer Satisfaction</strong>
+  <ul><li>NPS score collected</li>
+  <li>Any feedback actioned or documented</li>
+  <li>Customer confirms system meeting expectations</li></ul>
+</li>
+</ol>
+
+<h3>Audit Sign-off</h3>
+<p>Both the CSM and the customer Operations Manager must sign the Audit Completion form before moving to Stabilization.</p>`
+  },
+  {
+    id:'doc7', category:'guide', icon:'💡', tag:'Guide',
+    title:'CSM Best Practices Guide',
+    summary:'Tips, tricks, and best practices for CSMs to ensure smooth implementations.',
+    content:`
+<h2>CSM Best Practices Guide</h2>
+
+<h3>Communication Cadence</h3>
+<ul>
+<li><strong>Daily:</strong> Check OTB Tracker for blockers and overdue items</li>
+<li><strong>Weekly:</strong> Send status update email to customer (use Report → Weekly Status)</li>
+<li><strong>Bi-weekly:</strong> Review account health and NPS in Health Pulse</li>
+<li><strong>Monthly:</strong> CEO-level summary report for strategic accounts</li>
+</ul>
+
+<h3>Managing Blockers</h3>
+<ul>
+<li>Any blocker should be logged in the account's Open Points immediately</li>
+<li>Blockers open more than 3 days must be escalated to your manager</li>
+<li>Blockers open more than 7 days auto-escalate in Jira (if configured)</li>
+<li>Always have a resolution plan documented, not just the blocker</li>
+</ul>
+
+<h3>Stage Transition Tips</h3>
+<ul>
+<li>Never move to the next stage without exit criteria met — even under pressure</li>
+<li>If a customer pushes to skip stages, escalate to CS Manager</li>
+<li>Document any exceptions with written customer approval</li>
+<li>Use the Lifecycle page to adjust SLAs if a customer has a unique timeline</li>
+</ul>
+
+<h3>Difficult Customers</h3>
+<ul>
+<li>Log all verbal commitments in meeting notes immediately</li>
+<li>If a customer becomes unresponsive for 48+ hours, send a formal follow-up email and CC your manager</li>
+<li>For escalating situations, use the Playbook for the relevant stage to ensure nothing is missed</li>
+<li>Never promise delivery dates not in the implementation plan without manager approval</li>
+</ul>
+
+<h3>Using the OTB Tracker Effectively</h3>
+<ul>
+<li>Update account status and stage every Monday morning</li>
+<li>Log every meeting in the Meetings tab within 24 hours</li>
+<li>Keep Open Points current — resolve or close stale points weekly</li>
+<li>Set NPS after every customer satisfaction check-in</li>
+<li>Use Playbooks to never miss a step in any stage</li>
+</ul>
+
+<h3>Healthy Account Indicators</h3>
+<ul>
+<li>✅ Status: Green</li>
+<li>✅ NPS ≥ 8</li>
+<li>✅ No open blockers</li>
+<li>✅ Meeting logged within last 7 days</li>
+<li>✅ Open Points &lt; 3</li>
+<li>✅ Progress % aligned to stage</li>
+</ul>`
+  },
+  {
+    id:'doc8', category:'guide', icon:'🚨', tag:'Guide',
+    title:'Escalation Playbook',
+    summary:'When and how to escalate — contacts, procedures, and templates for critical situations.',
+    content:`
+<h2>Escalation Playbook</h2>
+
+<h3>Escalation Triggers</h3>
+<table style="width:100%;border-collapse:collapse;font-size:13px">
+<thead><tr style="background:var(--bg2)"><th style="padding:8px;border:1px solid var(--bd)">Situation</th><th style="padding:8px;border:1px solid var(--bd)">Action</th><th style="padding:8px;border:1px solid var(--bd)">Timeline</th></tr></thead>
+<tbody>
+<tr><td style="padding:8px;border:1px solid var(--bd)">Blocker open &gt; 3 days</td><td style="padding:8px;border:1px solid var(--bd)">Escalate to CS Manager</td><td style="padding:8px;border:1px solid var(--bd)">Immediate</td></tr>
+<tr><td style="padding:8px;border:1px solid var(--bd)">Customer threatening churn</td><td style="padding:8px;border:1px solid var(--bd)">Escalate to VP CS + Sales AE</td><td style="padding:8px;border:1px solid var(--bd)">Same day</td></tr>
+<tr><td style="padding:8px;border:1px solid var(--bd)">Go-live at risk (&gt;7 days delay)</td><td style="padding:8px;border:1px solid var(--bd)">CS Manager + Integration Team Lead</td><td style="padding:8px;border:1px solid var(--bd)">24 hours</td></tr>
+<tr><td style="padding:8px;border:1px solid var(--bd)">Critical integration down</td><td style="padding:8px;border:1px solid var(--bd)">Integration Team immediately</td><td style="padding:8px;border:1px solid var(--bd)">1 hour</td></tr>
+<tr><td style="padding:8px;border:1px solid var(--bd)">NPS &lt; 6 received</td><td style="padding:8px;border:1px solid var(--bd)">CS Manager review within 24h</td><td style="padding:8px;border:1px solid var(--bd)">24 hours</td></tr>
+<tr><td style="padding:8px;border:1px solid var(--bd)">Customer data issue</td><td style="padding:8px;border:1px solid var(--bd)">Technical escalation + CS Manager</td><td style="padding:8px;border:1px solid var(--bd)">2 hours</td></tr>
+</tbody></table>
+
+<h3>Escalation Email Template</h3>
+<div style="background:var(--bg2);border:1px solid var(--bd);border-radius:8px;padding:14px;font-family:monospace;font-size:12px;margin-top:8px">
+Subject: [ESCALATION] {Account Name} — {Issue Summary}<br><br>
+Hi {Manager Name},<br><br>
+I need to escalate the following issue for {Account Name}:<br><br>
+<strong>Issue:</strong> {Clear description}<br>
+<strong>Impact:</strong> {What is at risk — go-live, churn, etc.}<br>
+<strong>Duration:</strong> {How long has this been open}<br>
+<strong>Actions taken:</strong> {What you have already tried}<br>
+<strong>Customer contact:</strong> {Name, email, phone}<br>
+<strong>Next milestone at risk:</strong> {Date}<br><br>
+I need support with: {Specific ask}<br><br>
+Thank you,<br>
+{Your name}
+</div>
+
+<h3>Contacts</h3>
+<ul>
+<li><strong>CS Manager:</strong> First point of escalation for all account issues</li>
+<li><strong>Integration Team Lead:</strong> Technical integration failures</li>
+<li><strong>VP Customer Success:</strong> Churn risk, enterprise account issues</li>
+<li><strong>Sales AE:</strong> Commercial issues, contract disputes</li>
+<li><strong>Product Team:</strong> Feature gaps blocking go-live</li>
+</ul>`
+  },
+  {
+    id:'doc9', category:'template', icon:'📧', tag:'Template',
+    title:'Email Templates Library',
+    summary:'Ready-to-use email templates for every stage of the implementation journey.',
+    content:`
+<h2>Email Templates Library</h2>
+
+<h3>1. Welcome Email (Sales Handover)</h3>
+<div style="background:var(--bg2);border:1px solid var(--bd);border-radius:8px;padding:14px;font-size:12px;margin-bottom:16px">
+<strong>Subject:</strong> Welcome to GaragePlug — Your Implementation Begins!<br><br>
+Dear {Customer Name},<br><br>
+I'm {CSM Name}, your dedicated Customer Success Manager at GaragePlug. I'll be your primary point of contact throughout our implementation journey.<br><br>
+I'm excited to work with the {Company Name} team to get you live on GaragePlug. Here's what to expect over the next few weeks:<br><br>
+📅 <strong>Week 1:</strong> Discovery & planning<br>
+🔧 <strong>Week 2-3:</strong> Integration setup<br>
+⚙️ <strong>Week 4:</strong> Configuration & testing<br>
+🎓 <strong>Week 5:</strong> Training<br>
+🚀 <strong>Week 6:</strong> Go-live!<br><br>
+I'll schedule our kickoff call shortly. In the meantime, please review the attached Implementation Checklist.<br><br>
+Best regards,<br>
+{CSM Name}
+</div>
+
+<h3>2. Weekly Status Update</h3>
+<div style="background:var(--bg2);border:1px solid var(--bd);border-radius:8px;padding:14px;font-size:12px;margin-bottom:16px">
+<strong>Subject:</strong> {Company Name} — Weekly Implementation Update ({Date})<br><br>
+Hi {Customer Name},<br><br>
+Here's your weekly implementation update:<br><br>
+✅ <strong>Completed this week:</strong><br>
+• {Item 1}<br>
+• {Item 2}<br><br>
+🔄 <strong>In progress:</strong><br>
+• {Item}<br><br>
+📋 <strong>Action needed from you:</strong><br>
+• {Action item with deadline}<br><br>
+📅 <strong>Next milestone:</strong> {Milestone} by {Date}<br><br>
+Overall status: {On Track / At Risk}<br><br>
+Let me know if you have any questions.<br><br>
+Best,<br>
+{CSM Name}
+</div>
+
+<h3>3. Go-Live Announcement</h3>
+<div style="background:var(--bg2);border:1px solid var(--bd);border-radius:8px;padding:14px;font-size:12px;margin-bottom:16px">
+<strong>Subject:</strong> 🚀 {Company Name} is Now Live on GaragePlug!<br><br>
+Hi {Customer Name},<br><br>
+Congratulations! {Company Name} is officially live on GaragePlug as of today, {Date}.<br><br>
+Your team has worked hard to reach this milestone — well done to everyone involved!<br><br>
+<strong>What happens next:</strong><br>
+• Daily check-in calls for the first 7 days<br>
+• 24/7 support available at support@garageplug.com<br>
+• First NPS check-in in 30 days<br><br>
+For any urgent issues, please contact me directly or raise a support ticket at {Support URL}.<br><br>
+Excited to see {Company Name} grow with GaragePlug!<br><br>
+Best regards,<br>
+{CSM Name}
+</div>`
+  },
+  {
+    id:'doc10', category:'guide', icon:'📊', tag:'Guide',
+    title:'OTB Tracker User Guide',
+    summary:'How to use the OTB Implementation Tracker — all features explained for CSMs.',
+    content:`
+<h2>OTB Tracker User Guide</h2>
+
+<h3>Dashboard</h3>
+<p>The Dashboard shows a real-time overview of all accounts across all stages. Key metrics shown:</p>
+<ul>
+<li><strong>Total Accounts:</strong> All active implementations</li>
+<li><strong>Critical (Red):</strong> Accounts with blockers or over SLA</li>
+<li><strong>At Risk (Yellow):</strong> Accounts approaching SLA limit</li>
+<li><strong>On Track (Green):</strong> Healthy implementations</li>
+</ul>
+
+<h3>Accounts Page</h3>
+<p>Full list of all accounts with filtering by stage, status, owner, and region.</p>
+<ul>
+<li>Click any account row to open the Detail Panel</li>
+<li>Use filters at the top to narrow the list</li>
+<li>Click <strong>+ Add Account</strong> to create a new implementation</li>
+<li>Click <strong>⟳ Recalc Status</strong> to refresh all statuses</li>
+</ul>
+
+<h3>Account Detail Panel</h3>
+<p>Click any account to open the right-side detail panel with 6 tabs:</p>
+<ul>
+<li><strong>Overview:</strong> Key stats, next milestone, blocker, stage progress</li>
+<li><strong>Milestone:</strong> Visual lifecycle timeline for this account</li>
+<li><strong>Edit:</strong> Update all account fields</li>
+<li><strong>Meetings:</strong> Log and view all meetings</li>
+<li><strong>Open Points:</strong> Track tasks, blockers, and action items</li>
+<li><strong>Audit:</strong> Stage-specific checklists and audit items</li>
+</ul>
+
+<h3>Kanban View</h3>
+<p>Visual board showing all accounts across the 9 stages. Click any card to open the detail panel.</p>
+
+<h3>Health Pulse</h3>
+<p>Set NPS scores (0-10) and sentiment (5 levels) for each account. The health score is calculated from status, NPS, open points, meeting cadence, and SLA compliance.</p>
+
+<h3>Playbooks</h3>
+<p>Pre-built step-by-step guides for each implementation stage. To apply a playbook:</p>
+<ol>
+<li>Go to Playbooks → select a playbook</li>
+<li>Click <strong>Apply to Account</strong></li>
+<li>Select the account from the dropdown</li>
+<li>Click <strong>Apply Playbook Steps</strong> — steps become Open Points on the account</li>
+</ol>
+
+<h3>Reports</h3>
+<ul>
+<li><strong>Weekly Status:</strong> Send to all stakeholders every Monday</li>
+<li><strong>CEO Summary:</strong> Executive view for leadership</li>
+<li><strong>Account Report:</strong> Deep-dive on one account for internal review</li>
+<li><strong>Customer Report:</strong> Print-ready report to send to the customer</li>
+</ul>
+
+<h3>Settings → Jira Integration</h3>
+<p>Connect Jira to sync open points, push tickets, and get automatic escalation for overdue blockers.</p>
+
+<h3>Keyboard Tips</h3>
+<ul>
+<li>Click the page title in the sidebar to navigate</li>
+<li>Use <strong>Print / PDF</strong> button in Reports to generate PDFs</li>
+<li>Use <strong>Import CSV</strong> to bulk-import accounts from Jira exports</li>
+</ul>`
+  },
+];
+
+let docSearchVal='';
+let docCategoryVal='all';
+let selectedDocId=null;
+
+function renderDocs(){
+  document.getElementById('pt').textContent='Documents';
+  document.getElementById('ps').textContent='Onboarding guides, SOPs, checklists and templates';
+  document.getElementById('ph-r').innerHTML=`<button class="btn btn-sm" onclick="printDocContent()">&#128438; Print</button>`;
+  document.getElementById('pb').innerHTML=renderDocsHTML();
+}
+
+function renderDocsHTML(){
+  const cats=[
+    {id:'all',label:'All'},
+    {id:'process',label:'Process'},
+    {id:'sop',label:'SOPs'},
+    {id:'checklist',label:'Checklists'},
+    {id:'guide',label:'Guides'},
+    {id:'template',label:'Templates'},
+  ];
+
+  const filtered=ONBOARDING_DOCS.filter(d=>{
+    const matchCat=docCategoryVal==='all'||d.category===docCategoryVal;
+    const matchSearch=!docSearchVal||d.title.toLowerCase().includes(docSearchVal.toLowerCase())||d.summary.toLowerCase().includes(docSearchVal.toLowerCase());
+    return matchCat&&matchSearch;
+  });
+
+  const catTabs=cats.map(cat=>`
+    <button class="btn btn-sm ${docCategoryVal===cat.id?'btn-p':''}"
+      onclick="docCategoryVal='${cat.id}';renderDocs()"
+      style="border-radius:20px">${cat.label}</button>`).join('');
+
+  const docCards=filtered.map(d=>`
+    <div onclick="selectedDocId='${d.id}';renderDocs()"
+      style="background:var(--bg1);border:1px solid ${selectedDocId===d.id?'var(--blue)':'var(--bd)'};border-radius:var(--rl);padding:14px 16px;cursor:pointer;transition:border-color .15s">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:20px">${d.icon}</span>
+        <span style="font-size:10px;font-weight:600;background:var(--bg2);color:var(--tx2);padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px">${d.tag}</span>
+      </div>
+      <div style="font-size:13px;font-weight:600;color:var(--tx);margin-bottom:4px">${d.title}</div>
+      <div style="font-size:11px;color:var(--tx3);line-height:1.5">${d.summary}</div>
+    </div>`).join('');
+
+  const selDoc=ONBOARDING_DOCS.find(d=>d.id===selectedDocId)||ONBOARDING_DOCS[0];
+
+  return `
+  <div style="display:grid;grid-template-columns:320px 1fr;gap:16px;height:calc(100vh - 120px)">
+
+    <!-- Left: Doc List -->
+    <div style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
+      <!-- Search -->
+      <div style="position:relative">
+        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--tx3);font-size:13px">&#128269;</span>
+        <input placeholder="Search documents..." value="${docSearchVal}"
+          oninput="docSearchVal=this.value;renderDocs()"
+          style="width:100%;background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r);padding:8px 10px 8px 32px;font-size:12px;color:var(--tx);font-family:var(--f)">
+      </div>
+      <!-- Category tabs -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${catTabs}</div>
+      <!-- Doc count -->
+      <div style="font-size:11px;color:var(--tx3)">${filtered.length} document${filtered.length!==1?'s':''}</div>
+      <!-- Cards -->
+      <div style="display:flex;flex-direction:column;gap:8px">${docCards}</div>
+    </div>
+
+    <!-- Right: Doc Content -->
+    <div style="background:var(--bg1);border:1px solid var(--bd);border-radius:var(--rl);overflow-y:auto">
+      ${selDoc?`
+      <div style="padding:20px 24px" id="doc-content">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <span style="font-size:28px">${selDoc.icon}</span>
+          <div>
+            <div style="font-size:10px;font-weight:600;background:var(--blue-bg);color:var(--blue);padding:2px 8px;border-radius:10px;display:inline-block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">${selDoc.tag}</div>
+            <div style="font-size:18px;font-weight:700;color:var(--tx)">${selDoc.title}</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--tx3);margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--bd)">${selDoc.summary}</div>
+        <div class="doc-body" style="font-size:13px;color:var(--tx);line-height:1.8">
+          ${selDoc.content
+            .replace(/<h2>/g,'<div style="font-size:18px;font-weight:700;color:var(--tx);margin:20px 0 10px">')
+            .replace(/<\/h2>/g,'</div>')
+            .replace(/<h3>/g,'<div style="font-size:14px;font-weight:600;color:var(--tx);margin:16px 0 8px;padding-top:8px;border-top:1px solid var(--bd)">')
+            .replace(/<\/h3>/g,'</div>')
+            .replace(/<ul>/g,'<ul style="margin:8px 0 12px 20px;display:flex;flex-direction:column;gap:4px">')
+            .replace(/<ol>/g,'<ol style="margin:8px 0 12px 20px;display:flex;flex-direction:column;gap:4px">')
+            .replace(/<li>/g,'<li style="font-size:13px;color:var(--tx2)">')
+            .replace(/<p>/g,'<p style="margin:8px 0;color:var(--tx2)">')
+            .replace(/<table /g,'<table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:12px" ')
+            .replace(/<strong>/g,'<strong style="color:var(--tx)">')
+          }
+        </div>
+      </div>`:'<div style="padding:40px;text-align:center;color:var(--tx3)">Select a document to read</div>'}
+    </div>
+  </div>`;
+}
+
+function printDocContent(){
+  const selDoc=ONBOARDING_DOCS.find(d=>d.id===selectedDocId)||ONBOARDING_DOCS[0];
+  if(!selDoc){toast('Select a document first',false);return;}
+  const win=window.open('','_blank');
+  if(!win){toast('Pop-up blocked — allow pop-ups and try again',false);return;}
+  win.document.write(`<!DOCTYPE html><html><head><title>${selDoc.title}</title>
+  <style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;padding:20px;color:#1a1a1a;line-height:1.7}
+  h2{font-size:22px;font-weight:700;margin-bottom:6px}h3{font-size:16px;font-weight:600;margin-top:20px;margin-bottom:8px;border-bottom:1px solid #e2e8f0;padding-bottom:4px}
+  ul,ol{margin:8px 0 12px 24px}li{margin-bottom:4px}p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0}th,td{border:1px solid #e2e8f0;padding:8px;text-align:left}th{background:#f8fafc}
+  .header{background:#1e40af;color:#fff;padding:20px 24px;border-radius:8px;margin-bottom:24px}
+  .tag{display:inline-block;background:#dbeafe;color:#1e40af;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;margin-bottom:8px;text-transform:uppercase}
+  @media print{.header{background:#1e40af!important;-webkit-print-color-adjust:exact}}</style>
+  </head><body>
+  <div class="header"><div class="tag" style="background:rgba(255,255,255,.2);color:#fff">${selDoc.tag}</div>
+  <h2 style="color:#fff;margin:4px 0">${selDoc.icon} ${selDoc.title}</h2>
+  <p style="color:rgba(255,255,255,.8);margin:4px 0;font-size:13px">${selDoc.summary}</p></div>
+  ${selDoc.content}</body></html>`);
+  win.document.close();
+  setTimeout(()=>win.print(),500);
 }
 
 // ═══════════════════════════════════════════════════════
