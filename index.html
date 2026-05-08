@@ -354,6 +354,10 @@ const pcl=p=>p>=85?'p-g':p>=50?'p-a':'p-r';
 const uid=()=>++nextId;
 
 function calcHealth(a){
+  // Already Live / Stabilization — always healthy (90-100)
+  if(a.stage==='golive'||a.stage==='stabilization'){
+    return a.blocker?80:95; // slight dip if has blocker but still high
+  }
   let s=100;
   if(a.status==='red')s-=40; else if(a.status==='yellow')s-=20;
   if(a.daysInStage>sl(a.stage))s-=15;
@@ -395,7 +399,11 @@ function toast(msg,ok=true){
 }
 
 function getA(id){return accounts.find(x=>x.id===id);}
-function saveA_base(a){const i=accounts.findIndex(x=>x.id===a.id);if(i>=0)accounts[i]=a;}
+function saveA_base(a){
+  // Already Live accounts are always green
+  if(a.stage==='golive'||a.stage==='stabilization') a.status='green';
+  const i=accounts.findIndex(x=>x.id===a.id);if(i>=0)accounts[i]=a;
+}
 
 // ═══════════════════════════════════════════════════════
 // SIDEBAR & NAVIGATION
@@ -514,7 +522,9 @@ function autoRecalcStatus(){
     const stageSLA={'handover':5,'discovery':10,'integration':14,'config':12,'training':7,'onsite':5,'golive':30,'audit':7,'stabilization':30};
     const sla=stageSLA[a.stage]||14;
     let newStatus='green';
-    if(a.blocker){newStatus='red';}
+    if(a.stage==='golive'||a.stage==='stabilization'){
+      newStatus='green'; // Already Live / Stabilization — ALWAYS On Track, no risk
+    } else if(a.blocker){newStatus='red';}
     else if(a.daysInStage>sla*1.5){newStatus='red';}
     else if(a.daysInStage>sla||a.openPts>3){newStatus='yellow';}
     else if(a.prog<30&&a.daysInStage>sla*0.5){newStatus='yellow';}
@@ -1097,6 +1107,9 @@ function triggerImport(){
 // ── SMART STATUS MAPPER ───────────────────────────────
 // Maps Jira fields to green/yellow/red health status
 function mapJiraStatus(get, blocker, daysInStage, stageId){
+  // Already Live / Stabilization — ALWAYS green, no risk
+  if(stageId==='golive'||stageId==='stabilization') return 'green';
+
   // Check explicit flags first
   const priority=(get(['priority'])||'').toLowerCase();
   const resolution=(get(['resolution'])||'').toLowerCase();
@@ -3973,7 +3986,7 @@ function mapFromDB(r) {
   return {
     id: r.id, jira: r.jira_key || '', company: r.company || '',
     region: r.region || 'Global', stage: r.stage || 'handover',
-    status: r.status || 'green', mrr: r.mrr_tier || 'Not Set',
+    status: (r.stage==='golive'||r.stage==='stabilization')?'green':(r.status||'green'), mrr: r.mrr_tier || 'Not Set',
     prog: r.progress || 0, plannedGL: r.planned_gl || '',
     expectedGL: r.expected_gl || '', daysInStage: r.days_in_stage || 0,
     nextMile: r.next_milestone || '', blocker: r.blocker || '',
