@@ -1957,7 +1957,7 @@ function renderPaneAudit(a){
       <span class="bx ${a.auditSt==='Completed'?'bx-g':a.auditSt==='In Progress'?'bx-b':'bx-n'}">${a.auditSt}</span>
     </div>
     ${list.map((item,i)=>`
-      <div class="cl-row" onclick="toggleCheck(${a.id},${i})">
+      <div class="cl-row" onclick="toggleCheck('${a.id}',${i})">
         <div class="cl-chk ${(a.checks||[])[i]?'done':''}">${(a.checks||[])[i]?'&#10003;':''}</div>
         <span class="fn ${(a.checks||[])[i]?'tc-3':''}" style="${(a.checks||[])[i]?'text-decoration:line-through':''}">${item}</span>
       </div>`).join('')}
@@ -2228,7 +2228,7 @@ function renderHealth(){
       <td><span class="bx ${churnBadge}" style="font-size:9px">${a.churnRisk}</span></td>
       <td>
         <div style="display:flex;gap:4px">
-          ${SENTIMENTS.map(s=>`<button onclick="event.stopPropagation();setsentiment(${a.id},'${s.k}')" title="${s.label}"
+          ${SENTIMENTS.map(s=>`<button onclick="event.stopPropagation();setsentiment('${a.id}','${s.k}')" title="${s.label}"
             style="padding:2px 5px;border:1px solid ${a.sentiment===s.k?s.col:'var(--bd)'};border-radius:4px;background:${a.sentiment===s.k?s.bg:'transparent'};cursor:pointer;font-size:12px">${s.ic}</button>`).join('')}
         </div>
       </td>
@@ -2297,10 +2297,10 @@ function openHealthDetail(id){
     <div class="fl mt3"><label>Update NPS (0-10)</label>
       <input id="hd-nps" type="number" min="0" max="10" value="${a.nps!==null?a.nps:''}" placeholder="Enter NPS score 0-10"></div>
     <div class="fn fw5 mt3 mb2">Set Sentiment</div>
-    <div style="display:flex;gap:8px">${SENTIMENTS.map(s=>`<button onclick="setHealthSentiment(${a.id},'${s.k}')" style="padding:8px 12px;border:1.5px solid ${a.sentiment===s.k?s.col:'var(--bd)'};border-radius:var(--r);background:${a.sentiment===s.k?s.bg:'var(--bg2)'};cursor:pointer;font-size:18px">${s.ic}</button>`).join('')}</div>
+    <div style="display:flex;gap:8px">${SENTIMENTS.map(s=>`<button onclick="setHealthSentiment('${a.id}','${s.k}')" style="padding:8px 12px;border:1.5px solid ${a.sentiment===s.k?s.col:'var(--bd)'};border-radius:var(--r);background:${a.sentiment===s.k?s.bg:'var(--bg2)'};cursor:pointer;font-size:18px">${s.ic}</button>`).join('')}</div>
   </div>
   <div class="mo-ft">
-    <button class="btn btn-p" onclick="saveHealthDetail(${a.id})">Save</button>
+    <button class="btn btn-p" onclick="saveHealthDetail('${a.id}')">Save</button>
     <button class="btn" onclick="closeMO()">Cancel</button>
   </div>`);
 }
@@ -2316,7 +2316,7 @@ function openNPSBatch(){
   const rows=accounts.map(a=>`
     <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--bd)">
       <div class="f1 fn fw5">${a.company}</div>
-      ${SENTIMENTS.map(s=>`<button onclick="setsentiment(${a.id},'${s.k}')" style="padding:3px 6px;border:1px solid ${(a.sentiment||'neutral')===s.k?s.col:'var(--bd)'};border-radius:4px;background:${(a.sentiment||'neutral')===s.k?s.bg:'transparent'};cursor:pointer;font-size:13px">${s.ic}</button>`).join('')}
+      ${SENTIMENTS.map(s=>`<button onclick="setsentiment('${a.id}','${s.k}')" style="padding:3px 6px;border:1px solid ${(a.sentiment||'neutral')===s.k?s.col:'var(--bd)'};border-radius:4px;background:${(a.sentiment||'neutral')===s.k?s.bg:'transparent'};cursor:pointer;font-size:13px">${s.ic}</button>`).join('')}
       <input type="number" min="0" max="10" value="${a.nps!==null&&a.nps!==undefined?a.nps:''}" placeholder="NPS"
         onchange="setNPS(${a.id},+this.value)"
         style="width:52px;background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:3px 6px;color:var(--tx);font-size:12px">
@@ -2957,7 +2957,7 @@ function renderSingleAccountPB(a){
   document.getElementById('ps').textContent=a.company+' — Customized Playbooks';
   document.getElementById('ph-r').innerHTML=`
     <button class="btn btn-sm" onclick="pbAccView=null;renderPlaybooks()">&#8592; All Accounts</button>
-    <button class="btn btn-xs btn-r" onclick="resetAccountPB(${a.id})">Reset to Global</button>`;
+    <button class="btn btn-xs btn-r" onclick="resetAccountPB('${a.id}')">Reset to Global</button>`;
 
   const stageCards=STAGES.map(s=>{
     const stagePB=apb[s.id];
@@ -3109,8 +3109,10 @@ function resetAccountPB(accountId){
 function applyPlaybook(pbIdx){
   const selEl=document.getElementById('pb-acc-sel');
   if(!selEl){toast('Select an account from the dropdown above',false);return;}
-  const accId=parseInt(selEl.value);
-  if(!accId){toast('Select an account first',false);return;}
+  const rawId=selEl.value;
+  if(!rawId){toast('Select an account first',false);return;}
+  // Support both numeric IDs (legacy) and UUID strings (Supabase)
+  const accId=isNaN(rawId)?rawId:parseInt(rawId);
   const a=getA(accId);const pb=PLAYBOOKS[pbIdx];
   if(!a||!pb)return;
   pb.steps.forEach((s,i)=>{
@@ -3120,6 +3122,77 @@ function applyPlaybook(pbIdx){
   });
   a.openPts=a.points.filter(p=>p.status!=='Resolved').length;
   saveA(a);toast(`${pb.steps.length} steps added to ${a.company}`);
+}
+
+
+// ── WHATSAPP SAVE CONFIG ────────────────────────────
+async function saveWACfg(){
+  const _g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  integCfg.whatsapp.apiUrl=_g('wa-api');
+  integCfg.whatsapp.token=_g('wa-tok');
+  integCfg.whatsapp.phone=_g('wa-phone');
+  await saveIntegrationToDB('whatsapp',integCfg.whatsapp);
+  toast('WhatsApp settings saved');
+  renderSettings();
+}
+
+function addWAGroup(){
+  const nameEl=document.getElementById('wa-grp-name');
+  const linkEl=document.getElementById('wa-grp-link');
+  const name=nameEl?nameEl.value.trim():'';
+  if(!name){toast('Enter group name',false);return;}
+  waGroups.push({id:uid(),name,link:linkEl?linkEl.value.trim():'',accounts:[]});
+  if(nameEl)nameEl.value='';
+  if(linkEl)linkEl.value='';
+  renderSettings();
+  toast('Group added');
+}
+
+function deleteWAGroup(idx){
+  if(!confirm('Delete this group?'))return;
+  waGroups.splice(idx,1);
+  renderSettings();
+}
+
+// ── LIFECYCLE EDIT FUNCTIONS ────────────────────────
+function openStageEdit(idx){
+  const s=STAGES[idx];if(!s)return;
+  document.getElementById('lce-name-'+idx).contentEditable='true';
+  document.getElementById('lce-name-'+idx).focus();
+}
+
+function closeStageEdit(idx){
+  const el=document.getElementById('lce-name-'+idx);
+  if(el)el.contentEditable='false';
+}
+
+function saveStageEdit(idx){
+  const nameEl=document.getElementById('lce-name-'+idx);
+  const slaEl=document.getElementById('lce-sla-'+idx);
+  const ownerEl=document.getElementById('lce-owner-'+idx);
+  const entryEl=document.getElementById('lce-entry-'+idx);
+  const exitEl=document.getElementById('lce-exit-'+idx);
+  if(nameEl)STAGES[idx].name=nameEl.textContent||nameEl.value||STAGES[idx].name;
+  if(slaEl)STAGES[idx].sla=parseInt(slaEl.value)||STAGES[idx].sla||7;
+  if(ownerEl)STAGES[idx].owner=ownerEl.value||STAGES[idx].owner;
+  if(entryEl)STAGES[idx].entry=entryEl.value||STAGES[idx].entry;
+  if(exitEl)STAGES[idx].exit=exitEl.value||STAGES[idx].exit;
+  toast('Stage saved');
+  renderLifecycle();
+}
+
+function addStage(){
+  const newId='stage_'+Date.now();
+  STAGES.push({id:newId,name:'New Stage',sla:7,owner:'CSM',entry:'',exit:''});
+  renderLifecycle();
+  toast('Stage added');
+}
+
+function resetStages(){
+  if(!confirm('Reset to default lifecycle stages?'))return;
+  STAGES.splice(0,STAGES.length,...JSON.parse(JSON.stringify(DEFAULT_STAGES_BACKUP)));
+  renderLifecycle();
+  toast('Stages reset to default');
 }
 
 // ═══════════════════════════════════════════════════════
