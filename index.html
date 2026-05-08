@@ -507,9 +507,27 @@ function renderDash(){
 // ═══════════════════════════════════════════════════════
 // ACCOUNTS TABLE
 // ═══════════════════════════════════════════════════════
+function autoRecalcStatus(){
+  // Recalculate all account statuses based on current data
+  let changed=0;
+  accounts.forEach(a=>{
+    const stageSLA={'handover':5,'discovery':10,'integration':14,'config':12,'training':7,'onsite':5,'golive':30,'audit':7,'stabilization':30};
+    const sla=stageSLA[a.stage]||14;
+    let newStatus='green';
+    if(a.blocker){newStatus='red';}
+    else if(a.daysInStage>sla*1.5){newStatus='red';}
+    else if(a.daysInStage>sla||a.openPts>3){newStatus='yellow';}
+    else if(a.prog<30&&a.daysInStage>sla*0.5){newStatus='yellow';}
+    else{newStatus='green';}
+    if(newStatus!==a.status){a.status=newStatus;saveA(a);changed++;}
+  });
+  render();
+  toast('Status recalculated for all '+accounts.length+' accounts'+(changed?' ('+changed+' changed)':''));
+}
+
 function renderAccounts(){
   document.getElementById('pt').textContent='Accounts';
-  document.getElementById('ph-r').innerHTML=`<button class="btn btn-p" onclick="openAddMO()">+ Add Account</button>`;
+  document.getElementById('ph-r').innerHTML=`<button class="btn btn-p" onclick="openAddMO()">+ Add Account</button><button class="btn btn-sm" onclick="autoRecalcStatus()" title="Recalculate status based on SLA and blockers">&#8635; Recalc Status</button>`;
 
   const owners=[...new Set(accounts.map(a=>a.owner).filter(Boolean))].sort();
   const oo=owners.map(o=>`<option value="${o}" ${flt.owner===o?'selected':''}>${o}</option>`).join('');
@@ -583,7 +601,7 @@ function renderAccounts(){
 function renderKanban(){
   document.getElementById('pt').textContent='Kanban';
   document.getElementById('ps').textContent='Accounts by stage';
-  document.getElementById('ph-r').innerHTML=`<button class="btn btn-p" onclick="openAddMO()">+ Add Account</button>`;
+  document.getElementById('ph-r').innerHTML=`<button class="btn btn-p" onclick="openAddMO()">+ Add Account</button><button class="btn btn-sm" onclick="autoRecalcStatus()" title="Recalculate status based on SLA and blockers">&#8635; Recalc Status</button>`;
   const cols=STAGES.map(s=>{
     const accs=accounts.filter(a=>a.stage===s.id);
     const cards=accs.map(a=>`
@@ -1076,6 +1094,41 @@ function triggerImport(){
   else toast('File input not found — try refreshing',false);
 }
 
+// ── SMART STATUS MAPPER ───────────────────────────────
+// Maps Jira fields to green/yellow/red health status
+function mapJiraStatus(get, blocker, daysInStage, stageId){
+  // Check explicit flags first
+  const priority=(get(['priority'])||'').toLowerCase();
+  const resolution=(get(['resolution'])||'').toLowerCase();
+  const flagged=(get(['flagged','flag'])||'').toLowerCase();
+  const issueStatus=(get(['status'])||'').toLowerCase();
+  const labels=(get(['labels'])||'').toLowerCase();
+
+  // Red: blocked, flagged, highest priority, overdue
+  if(blocker) return 'red';
+  if(flagged==='yes'||flagged==='true'||labels.includes('blocked')||labels.includes('escalat')) return 'red';
+  if(priority==='highest'||priority==='critical') return 'red';
+  if(issueStatus.includes('blocked')||issueStatus.includes('impeded')) return 'red';
+
+  // Green: done, resolved, low priority, on track
+  if(resolution==='done'||resolution==='fixed'||resolution==='wont fix'||resolution==='won\'t fix'||resolution==='cannot reproduce') return 'green';
+  if(issueStatus.includes('done')||issueStatus.includes('closed')||issueStatus.includes('resolved')) return 'green';
+  if(priority==='low'||priority==='lowest') return 'green';
+
+  // Green: early stages on track (not overdue)
+  const stageSLA={'handover':5,'discovery':10,'integration':14,'config':12,'training':7,'onsite':5,'golive':30,'audit':7,'stabilization':30};
+  const sla=stageSLA[stageId]||14;
+  if(daysInStage<=sla*0.7&&!blocker) return 'green'; // under 70% of SLA = green
+
+  // Yellow: in progress, at risk
+  if(issueStatus.includes('progress')||issueStatus.includes('review')||issueStatus.includes('testing')) return 'yellow';
+  if(priority==='medium'||priority==='high') return 'yellow';
+  if(daysInStage>sla) return 'yellow'; // overdue but not blocked
+
+  return 'green'; // default to green (not at risk unless proven otherwise)
+}
+
+
 function importJiraCSV(input){
   const file=input.files[0];if(!file)return;
   const reader=new FileReader();
@@ -1117,7 +1170,7 @@ function importJiraCSV(input){
         company,
         region:get(['region'])||'Global',
         stage:stageId,
-        status:get(['status_color'])||'yellow',
+        status:mapJiraStatus(get, get(['blocker','pending reason','block','flagged'])||'', parseInt(get(['days','age']))||0, stageId),
         mrr:get(['mrr','story points'])||'Not Set',
         prog:progMap[si>=0?si:0]||20,
         daysInStage:parseInt(get(['days','age']))||0,
