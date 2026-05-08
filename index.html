@@ -3318,9 +3318,11 @@ function renderCEOReport(){
 }
 
 function renderAccountReport(){
-  const acOpts=accounts.map(a=>`<option value="${a.id}">${a.company}</option>`).join('');
-  const selId=parseInt(document.getElementById('rpt-acc-sel')?.value||accounts[0]?.id);
+  // Get selected ID — UUID-safe, preserve across re-renders
+  const rawVal=document.getElementById('rpt-acc-sel')?.value||'';
+  const selId=rawVal&&rawVal!=='undefined'?(isNaN(rawVal)?rawVal:parseInt(rawVal)):(accounts[0]?.id);
   const a=getA(selId)||accounts[0];
+  const acOpts=accounts.map(ac=>`<option value="${ac.id}" ${ac.id==selId?'selected':''}>${ac.company}</option>`).join('');
   if(!a)return'<div class="fn tc-3">No accounts available</div>';
   const si=SIDX[a.stage]??0;
   const lc=STAGES.map((s,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--bd)">
@@ -3352,9 +3354,11 @@ function renderAccountReport(){
 }
 
 function renderCustomerReport(){
-  const acOpts=accounts.map(a=>`<option value="${a.id}">${a.company}</option>`).join('');
-  const selId=parseInt(document.getElementById('cust-acc-sel')?.value||accounts[0]?.id);
+  // Get selected ID — UUID-safe, preserve across re-renders
+  const rawVal=document.getElementById('cust-acc-sel')?.value||'';
+  const selId=rawVal&&rawVal!=='undefined'?(isNaN(rawVal)?rawVal:parseInt(rawVal)):(accounts[0]?.id);
   const a=getA(selId)||accounts[0];
+  const acOpts=accounts.map(ac=>`<option value="${ac.id}" ${ac.id==selId?'selected':''}>${ac.company}</option>`).join('');
   if(!a)return'<div class="fn tc-3">No accounts</div>';
   const si=SIDX[a.stage]??0;
   const checksDone=(a.checks||[]).filter(Boolean).length;
