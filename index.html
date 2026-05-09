@@ -1692,7 +1692,7 @@ function renderMilestoneTree(accountId){
   <div style="padding:14px 18px">
     <div class="fx fxa fxb mb3">
       <span class="sec-title">Milestone Tree</span>
-      <button class="btn btn-xs btn-p" onclick="openAddMilestoneMO(${accountId})">+ Add Milestone</button>
+      <button class="btn btn-xs btn-p" onclick="openAddMilestoneMO('${accountId}')">+ Add Milestone</button>
     </div>
     <div style="position:relative">
       ${ms.map((m,i)=>{
@@ -1732,7 +1732,7 @@ function openAddMilestoneMO(accountId){
       <div class="fl" style="grid-column:span 2"><label>Notes</label><textarea id="ms-notes" rows="2"></textarea></div>
     </div>
   </div>
-  <div class="mo-ft"><button class="btn btn-p" onclick="saveCustomMilestone(${accountId})">Add</button><button class="btn" onclick="closeMO()">Cancel</button></div>`);
+  <div class="mo-ft"><button class="btn btn-p" onclick="saveCustomMilestone('${accountId}')">Add</button><button class="btn" onclick="closeMO()">Cancel</button></div>`);
 }
 
 function saveCustomMilestone(accountId){
@@ -3206,6 +3206,32 @@ let selectedDoc=null;
 
 const ONBOARDING_DOCS=[
   {
+    id:'doc0', category:'live', icon:'📡', tag:'Live',
+    title:'Live Implementation Status',
+    summary:'Real-time snapshot of all accounts — auto-updates from your tracker data.',
+    get content(){
+      const total=accounts.length;
+      const byStage=STAGES.map(s=>({name:s.name,count:accounts.filter(a=>a.stage===s.id).length}));
+      const stageTable=byStage.map(s=>`<tr><td style="padding:7px 10px;border:1px solid var(--bd)">${s.name}</td><td style="padding:7px 10px;border:1px solid var(--bd);font-weight:600">${s.count}</td><td style="padding:7px 10px;border:1px solid var(--bd)">${s.count?'<div style="background:var(--blue);height:6px;border-radius:3px;width:'+Math.round(s.count/total*200)+'px"></div>':''}</td></tr>`).join('');
+      const blockerList=accounts.filter(a=>a.blocker).map(a=>`<li><strong>${a.company}</strong> (${STAGES.find(s=>s.id===a.stage)?.name||a.stage}): ${a.blocker}</li>`).join('');
+      const overdueLi=accounts.filter(a=>{const sl={'handover':5,'discovery':10,'integration':14,'config':12,'training':7,'onsite':5,'golive':30,'audit':7,'stabilization':30};return a.stage!=='golive'&&a.stage!=='stabilization'&&a.daysInStage>(sl[a.stage]||14);}).map(a=>`<li><strong>${a.company}</strong> — ${a.daysInStage} days in ${STAGES.find(s=>s.id===a.stage)?.name||a.stage} (SLA: ${STAGES.find(s=>s.id===a.stage)?.sla||14}d)</li>`).join('');
+      return `<h2>Live Implementation Status</h2>
+<p style="color:var(--tx3);font-size:12px">Auto-generated from tracker data &mdash; last updated ${new Date().toLocaleTimeString()}</p>
+<h3>Stage Distribution (${total} accounts)</h3>
+<table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:13px">
+<thead><tr style="background:var(--bg2)"><th style="padding:7px 10px;text-align:left;border:1px solid var(--bd)">Stage</th><th style="padding:7px 10px;text-align:left;border:1px solid var(--bd)">Count</th><th style="padding:7px 10px;border:1px solid var(--bd);min-width:120px">Distribution</th></tr></thead>
+<tbody>${stageTable}</tbody></table>
+<h3>Active Blockers ${accounts.filter(a=>a.blocker).length>0?'('+accounts.filter(a=>a.blocker).length+')':''}</h3>
+${blockerList?`<ul style="margin:8px 0 12px 20px">${blockerList}</ul>`:'<p style="color:var(--green)">&#10003; No active blockers</p>'}
+<h3>Accounts Over SLA</h3>
+${overdueLi?`<ul style="margin:8px 0 12px 20px">${overdueLi}</ul>`:'<p style="color:var(--green)">&#10003; All accounts within SLA</p>'}
+<h3>Top Accounts by Progress</h3>
+<table style="width:100%;border-collapse:collapse;font-size:12px">
+<thead><tr style="background:var(--bg2)"><th style="padding:7px;text-align:left;border:1px solid var(--bd)">Account</th><th style="padding:7px;text-align:left;border:1px solid var(--bd)">Stage</th><th style="padding:7px;text-align:left;border:1px solid var(--bd)">Status</th><th style="padding:7px;text-align:left;border:1px solid var(--bd)">Progress</th><th style="padding:7px;text-align:left;border:1px solid var(--bd)">Owner</th></tr></thead>
+<tbody>${[...accounts].sort((a,b)=>b.prog-a.prog).slice(0,10).map(a=>`<tr><td style="padding:7px;border:1px solid var(--bd);font-weight:500">${a.company}</td><td style="padding:7px;border:1px solid var(--bd)">${STAGES.find(s=>s.id===a.stage)?.name||a.stage}</td><td style="padding:7px;border:1px solid var(--bd)"><span style="color:${a.status==='green'?'var(--green)':a.status==='yellow'?'var(--amber)':'var(--red)'}">${a.status==='green'?'On Track':a.status==='yellow'?'At Risk':'Critical'}</span></td><td style="padding:7px;border:1px solid var(--bd)">${a.prog}%</td><td style="padding:7px;border:1px solid var(--bd)">${a.owner||'—'}</td></tr>`).join('')}</tbody></table>`;
+    }
+  },
+  {
     id:'doc1', category:'process', icon:'📋', tag:'Process',
     title:'OTB Implementation Overview',
     summary:'End-to-end implementation methodology for GaragePlug OTB customers.',
@@ -3740,6 +3766,50 @@ let docSearchVal='';
 let docCategoryVal='all';
 let selectedDocId=null;
 
+function _injectLiveDocData(){
+  // Dynamically update document content with real account data
+  const total=accounts.length;
+  const red=accounts.filter(a=>a.status==='red').length;
+  const yellow=accounts.filter(a=>a.status==='yellow').length;
+  const green=accounts.filter(a=>a.status==='green').length;
+  const live=accounts.filter(a=>a.stage==='golive'||a.stage==='stabilization').length;
+  const blockers=accounts.filter(a=>a.blocker).length;
+  const avgNPS=(()=>{const ns=accounts.filter(a=>a.nps!==null&&a.nps!==undefined);return ns.length?(ns.reduce((s,a)=>s+a.nps,0)/ns.length).toFixed(1):'N/A';})();
+  const overSLA=accounts.filter(a=>{const slaD={'handover':5,'discovery':10,'integration':14,'config':12,'training':7,'onsite':5,'golive':30,'audit':7,'stabilization':30};return a.daysInStage>(slaD[a.stage]||14);}).length;
+
+  // Find doc1 and update its content
+  const doc1=ONBOARDING_DOCS.find(d=>d.id==='doc1');
+  if(doc1){
+    doc1.liveStats={total,red,yellow,green,live,blockers,avgNPS,overSLA};
+  }
+
+  // Inject live data into doc10 (Tracker User Guide)
+  const doc10=ONBOARDING_DOCS.find(d=>d.id==='doc10');
+  if(doc10){
+    doc10.liveStats={total,red,yellow,green};
+  }
+}
+
+// Get live stats panel HTML
+function _liveStatsPanel(stats){
+  if(!stats) return '';
+  return `<div style="background:var(--blue-bg);border:1px solid var(--blue-bd);border-radius:8px;padding:14px 16px;margin-bottom:20px">
+    <div style="font-size:11px;font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">&#9679; Live Data — Updated in real time from your tracker</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+      <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--tx)">${stats.total}</div><div style="font-size:10px;color:var(--tx3)">Total Accounts</div></div>
+      <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--green)">${stats.live}</div><div style="font-size:10px;color:var(--tx3)">Already Live</div></div>
+      <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--red)">${stats.blockers}</div><div style="font-size:10px;color:var(--tx3)">Active Blockers</div></div>
+      <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--blue)">${stats.avgNPS}</div><div style="font-size:10px;color:var(--tx3)">Avg NPS</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
+      <div style="background:var(--green-bg);border:1px solid var(--green-bd);border-radius:6px;padding:6px 10px;text-align:center"><span style="color:var(--green);font-weight:600">${stats.green}</span> <span style="font-size:11px;color:var(--tx3)">On Track</span></div>
+      <div style="background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:6px;padding:6px 10px;text-align:center"><span style="color:var(--amber);font-weight:600">${stats.yellow}</span> <span style="font-size:11px;color:var(--tx3)">At Risk</span></div>
+      <div style="background:var(--red-bg);border:1px solid var(--red-bd);border-radius:6px;padding:6px 10px;text-align:center"><span style="color:var(--red);font-weight:600">${stats.red}</span> <span style="font-size:11px;color:var(--tx3)">Critical</span></div>
+    </div>
+    ${stats.overSLA>0?`<div style="margin-top:8px;font-size:11px;color:var(--amber)">&#9888; ${stats.overSLA} account${stats.overSLA!==1?'s':''} currently over SLA</div>`:''}
+  </div>`;
+}
+
 function renderDocs(){
   document.getElementById('pt').textContent='Documents';
   document.getElementById('ps').textContent='Onboarding guides, SOPs, checklists and templates';
@@ -3748,8 +3818,11 @@ function renderDocs(){
 }
 
 function renderDocsHTML(){
+  // Inject live stats into relevant documents
+  _injectLiveDocData();
   const cats=[
     {id:'all',label:'All'},
+    {id:'live',label:'&#9679; Live'},
     {id:'process',label:'Process'},
     {id:'sop',label:'SOPs'},
     {id:'checklist',label:'Checklists'},
@@ -3814,6 +3887,7 @@ function renderDocsHTML(){
         </div>
         <div style="font-size:12px;color:var(--tx3);margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--bd)">${selDoc.summary}</div>
         <div class="doc-body" style="font-size:13px;color:var(--tx);line-height:1.8">
+          ${selDoc.liveStats?_liveStatsPanel(selDoc.liveStats):''}
           ${selDoc.content
             .replace(/<h2>/g,'<div style="font-size:18px;font-weight:700;color:var(--tx);margin:20px 0 10px">')
             .replace(/<\/h2>/g,'</div>')
