@@ -454,49 +454,41 @@ let milestones={};
 
 async function jiraAPI(method,path,body=null){
   const cfg=integCfg.jira;
-  if(!cfg.url||!cfg.token||!cfg.email){
-    throw new Error('Jira not configured. Add URL, email and API token in Settings.');
-  }
-  const EDGE_URL='https://lfhlpdonndbpaczyssor.supabase.co/functions/v1/dynamic-handler';
+  if(!cfg.url||!cfg.token||!cfg.email){throw new Error('Jira not configured.');}
+  const cleanEmail=(cfg.email||'').replace(/\s+/g,'').toLowerCase().trim();
+  const cleanToken=(cfg.token||'').replace(/\s+/g,'').trim();
+  const base=cfg.url.replace(/\/+$/,'');
+  const jiraPath=path.startsWith('/rest')?path:'/rest/api/3'+path;
+  const auth='Basic '+btoa(cleanEmail+':'+cleanToken);
+
+  // Strategy 1: Direct call (works on HTTPS/Vercel)
   try{
-    const res=await fetch(EDGE_URL,{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'Authorization':'Bearer '+SB_KEY,
-        'apikey':SB_APIKEY,
-      },
-      body:JSON.stringify({
-        jiraUrl:cfg.url,
-        email:(cfg.email||'').replace(/\[([^\]]+)\]\([^)]+\)/g,'$1').trim(),
-        token:(cfg.token||'').replace(/\s+/g,'').trim(),
-        method:method,
-        path:path,
-        payload:body||undefined,
-      }),
-    });
-    if(!res.ok){
-      const err=await res.json().catch(()=>({error:res.statusText}));
-      if(res.status===401)throw new Error('Jira auth failed — check email and API token');
-      if(res.status===404)throw new Error('Edge Function not deployed yet');
-      throw new Error(err.error||err.message||'Jira API error ('+res.status+')');
-    }
-    const data=await res.json();
-    if(data.error)throw new Error(data.error);
-    return data;
+    const res=await fetch(base+jiraPath,{method,headers:{'Authorization':auth,'Accept':'application/json','Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+    if(res.status===401)throw new Error('Jira auth failed — check email and API token');
+    if(res.ok){const t=await res.text();return t?JSON.parse(t):null;}
+    if(res.status>=400&&res.status<500){const t=await res.text();return t?JSON.parse(t):null;}
   }catch(e){
-    if(e.message.includes('not deployed')||e.message.includes('Failed to fetch')){
-      return jiraAPIFallback(method,path,body);
-    }
-    throw e;
+    if(e.message.includes('auth failed'))throw e;
+    console.warn('Direct Jira call blocked (CORS), trying edge function...');
   }
+
+  // Strategy 2: Supabase Edge Function proxy
+  try{
+    const EDGE='https://lfhlpdonndbpaczyssor.supabase.co/functions/v1/dynamic-handler';
+    const res=await fetch(EDGE,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SB_KEY},body:JSON.stringify({jiraUrl:cfg.url,email:cleanEmail,token:cleanToken,method,path,payload:body||undefined})});
+    if(res.ok){const d=await res.json();if(!d.error)return d;throw new Error(d.error);}
+    throw new Error('Edge HTTP '+res.status);
+  }catch(e){console.warn('Edge function failed:',e.message);}
+
+  // Strategy 3: CORS proxy fallback
+  return jiraAPIFallback(method,path,body);
 }
 
 async function jiraAPIFallback(method,path,body=null){
   const cfg=integCfg.jira;
   const base=cfg.url.replace(/\/+$/,'');
-  const target=base+'/rest/api/3'+path;
-  const auth='Basic '+btoa((cfg.email||'')+':'+cfg.token);
+  const target=base+(path.startsWith('/rest')?path:'/rest/api/3'+path);
+  const auth='Basic '+btoa((cfg.email||'').trim()+':'+(cfg.token||'').trim());
   const reqOpts={method,headers:{'Content-Type':'application/json','Accept':'application/json','Authorization':auth},...(body?{body:JSON.stringify(body)}:{})};
   const proxies=['https://api.allorigins.win/raw?url='+encodeURIComponent(target),'https://corsproxy.io/?url='+encodeURIComponent(target)];
   let lastErr='All proxies failed';
@@ -658,18 +650,18 @@ async function saveAccountToDB(a){
     const payload=mapToDB(a);
     const isNumericId=typeof a.id==='number';
     if(isNumericId){const result=await sbAPI('POST','accounts',{},{...payload,id:undefined});if(result&&result[0]&&result[0].id){a.id=result[0].id;saveA_local(a);}}
-    else{await sbAPI('UPSERT','accounts',{},{...payload,id:a.id});}
+    else{await sbAPI('UPSERT','accounts',{'on_conflict':'id'},{...payload,id:a.id});}
   }catch(e){console.error('Save account error:',e.message);toast('DB save error: '+e.message,false);}
 }
 
 async function saveMeetingToDB(m,accountId){
   if(DB_MODE!=='live')return;
-  try{const payload=mapMeetingToDB(m,accountId);const isNew=typeof m.id==='number';const result=await sbAPI(isNew?'POST':'UPSERT','meetings',{},isNew?{...payload,id:undefined}:payload);if(result&&result[0])m.id=result[0].id;}catch(e){console.error('Save meeting error:',e.message);}
+  try{const payload=mapMeetingToDB(m,accountId);const isNew=typeof m.id==='number';const result=await sbAPI(isNew?'POST':'UPSERT','meetings',isNew?{}:{'on_conflict':'id'},isNew?{...payload,id:undefined}:payload);if(result&&result[0])m.id=result[0].id;}catch(e){console.error('Save meeting error:',e.message);}
 }
 
 async function savePointToDB(p,accountId){
   if(DB_MODE!=='live')return;
-  try{const payload=mapPointToDB(p,accountId);const isNew=typeof p.id==='number';const result=await sbAPI(isNew?'POST':'UPSERT','open_points',{},isNew?{...payload,id:undefined}:payload);if(result&&result[0])p.id=result[0].id;}catch(e){console.error('Save point error:',e.message);}
+  try{const payload=mapPointToDB(p,accountId);const isNew=typeof p.id==='number';const result=await sbAPI(isNew?'POST':'UPSERT','open_points',isNew?{}:{'on_conflict':'id'},isNew?{...payload,id:undefined}:payload);if(result&&result[0])p.id=result[0].id;}catch(e){console.error('Save point error:',e.message);}
 }
 
 async function deleteAccountFromDB(id){if(DB_MODE!=='live'||typeof id==='number')return;await sbAPI('DELETE','accounts',{id:`eq.${id}`}).catch(e=>console.error('DELETE account:',e.message));}
@@ -679,7 +671,7 @@ async function deletePointFromDB(id){if(DB_MODE!=='live'||typeof id==='number')r
 async function saveIntegrationToDB(service,config){
   localStorage.setItem('intg_'+service,JSON.stringify(config));
   if(DB_MODE!=='live')return;
-  try{await sbAPI('UPSERT','integrations',{},{service_name:service,config:JSON.stringify(config),user_id:currentUser?.id||null,updated_at:new Date().toISOString()});}catch(e){console.error('Save integration error:',e.message);toast('Saved locally only',false);}
+  try{await sbAPI('UPSERT','integrations',{'on_conflict':'service_name'},{service_name:service,config:JSON.stringify(config),user_id:currentUser?.id||null,updated_at:new Date().toISOString()});}catch(e){console.error('Save integration error:',e.message);toast('Saved locally only',false);}
 }
 
 async function loadIntegrationsFromDB(){
