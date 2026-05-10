@@ -1148,121 +1148,174 @@ function importJiraCSV(input){
   const reader=new FileReader();
   reader.onload=async function(e){
     const csvText=e.target.result;
+    toast('Parsing Jira CSV...');
     const lines=csvText.split('\n');
     if(lines.length<2){toast('CSV appears empty',false);return;}
+    const rawHeaders=parseCSVRow(lines[0]);
+    const headers=rawHeaders.map(h=>h.replace(/^\uFEFF/,'').trim());
 
-    toast('Processing CSV...');
+    // Get column value by exact or partial header match
+    function col(row,names){
+      for(const name of (Array.isArray(names)?names:[names])){
+        const idx=headers.findIndex(h=>h===name||h.toLowerCase().includes(name.toLowerCase()));
+        if(idx>=0&&row[idx]!=null&&String(row[idx]).trim())return String(row[idx]).trim();
+      }
+      return '';
+    }
 
-    // Parse CSV into account objects
-    const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase());
+    // Parse Jira date "20/Dec/25 12:00 AM" -> "2025-12-20"
+    function jDate(s){
+      if(!s)return '';
+      const m=String(s).trim().match(/^(\d{1,2})\/([A-Za-z]{3})\/(\d{2,4})/);
+      if(m){
+        const mo={jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'}[m[2].toLowerCase()]||'01';
+        const yr=m[3].length===2?'20'+m[3]:m[3];
+        return yr+'-'+mo+'-'+m[1].padStart(2,'0');
+      }
+      if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
+      return '';
+    }
+
+    // Map Jira Status -> internal stage id
+    function stageOf(status){
+      const s=String(status).toLowerCase().replace(/[\s\-]+/g,'');
+      if(s.includes('golive')||s.includes('go-live')||s.includes('testimonial'))return 'golive';
+      if(s.includes('saleshand')||s.includes('handover'))return 'handover';
+      if(s.includes('integr'))return 'integration';
+      if(s.includes('config'))return 'config';
+      if(s.includes('train'))return 'training';
+      if(s.includes('onsite')||s.includes('implement'))return 'onsite';
+      if(s.includes('audit'))return 'audit';
+      if(s.includes('stabiliz'))return 'stabilization';
+      if(s.includes('discov')||s.includes('review'))return 'discovery';
+      return 'discovery';
+    }
+
+    // Progress % by stage
+    function progOf(stageId,resolution){
+      if(resolution&&resolution.toLowerCase()==='done')return 100;
+      return {handover:8,discovery:18,integration:38,config:52,training:65,onsite:78,golive:95,audit:88,stabilization:100}[stageId]||20;
+    }
+
+    // Health status
+    function healthOf(stageId,blocker,priority,goLiveDate){
+      if(stageId==='golive'||stageId==='stabilization')return 'green';
+      if(blocker)return 'red';
+      const p=String(priority).toLowerCase();
+      if(p==='highest'||p==='critical')return 'red';
+      if(goLiveDate&&goLiveDate<new Date().toISOString().slice(0,10)&&stageId!=='golive')return 'yellow';
+      if(p==='high')return 'yellow';
+      return 'green';
+    }
+
     const newAccounts=[];
-
     for(let i=1;i<lines.length;i++){
       if(!lines[i].trim())continue;
       const row=parseCSVRow(lines[i]);
-      if(row.length<2)continue;
-      const get=function(names){
-        for(const n of names){
-          const ix=headers.findIndex(h=>h.includes(n));
-          if(ix>=0&&row[ix])return row[ix].trim();
-        }
-        return '';
-      };
-      const company=get(['summary','company name','company']);
-      if(!company)continue;
-      const jiraKey=get(['issue key','key','id','jira']);
-      const statusRaw=get(['status']).toLowerCase();
-      const stageMap={'sales hand':0,'handover':0,'discovery':1,'integr':2,'config':3,'training':4,'onsite':5,'golive':6,'go-live':6,'live':6,'already live':6,'audit':7,'stab':8,'done':8};
-      let stageId='discovery';
-      for(const k of Object.keys(stageMap)){
-        if(statusRaw.includes(k)){stageId=STAGES[stageMap[k]]?STAGES[stageMap[k]].id:'discovery';break;}
+      if(row.length<3)continue;
+      const company=col(row,['Summary']);
+      if(!company||company==='Summary')continue;
+
+      const jiraKey   = col(row,['Issue key']);
+      const status    = col(row,['Status']);
+      const resolution= col(row,['Resolution']);
+      const priority  = col(row,['Priority'])||'Medium';
+      const stageId   = stageOf(status);
+
+      // ── DATE FIELDS — using exact Jira column names ──
+      const goLiveDate   = jDate(col(row,['Custom field (Go-Live Date)']));
+      const dueDate      = jDate(col(row,['Due date']));
+      const contractDate = jDate(col(row,['Custom field (Contract sign)']));
+      const intgLiveDate = jDate(col(row,['Custom field (Intigreation Live Date)']));
+      const startDate    = jDate(col(row,['Custom field (Start date)']));
+      const updatedDate  = jDate(col(row,['Updated']));
+      const createdDate  = jDate(col(row,['Created']));
+      const etaDate      = jDate(col(row,['Custom field (Customer ETA)']));
+
+      // ── KEY: expectedGL = Go-Live Date (not Due date) ──
+      const expectedGL = goLiveDate || etaDate || '';
+      const plannedGL  = contractDate || startDate || '';
+
+      // ── OWNER: custom Owner field overrides Assignee ──
+      const owner = col(row,['Custom field (Owner)'])||col(row,['Assignee']);
+
+      // ── BLOCKER ──
+      const blocker = col(row,['Custom field (Pending reason)']);
+
+      // ── REGION ──
+      const region = col(row,['Custom field (Customer Region)'])||col(row,['Labels'])||'Global';
+
+      // ── MRR ──
+      const mrr = col(row,['Custom field (MRR & Country)'])||'Not Set';
+
+      // ── DAYS IN STAGE ──
+      let daysInStage=0;
+      const stageStart=startDate||contractDate||createdDate;
+      if(stageStart){
+        daysInStage=Math.max(0,Math.floor((new Date()-new Date(stageStart))/(86400000)));
       }
-      const si=STAGES.findIndex(s=>s.id===stageId);
-      const progMap=[8,18,38,52,65,78,95,88,100];
+
+      // ── NOTES ──
+      const notes=(col(row,['Description'])||'').slice(0,300);
+
+      // ── NEXT MILESTONE ──
+      let nextMile='';
+      if(intgLiveDate)nextMile='Integration Live: '+intgLiveDate;
+      else if(expectedGL)nextMile='Expected Go-Live: '+expectedGL;
+
       newAccounts.push({
-        jira:jiraKey||('IMP-'+uid()),
-        company,
-        region:get(['region'])||'Global',
-        stage:stageId,
-        status:mapJiraStatus(get, get(['blocker','pending reason','block','flagged'])||'', parseInt(get(['days','age']))||0, stageId),
-        mrr:get(['mrr','story points'])||'Not Set',
-        prog:progMap[si>=0?si:0]||20,
-        daysInStage:parseInt(get(['days','age']))||0,
-        nextMile:get(['milestone','fix versions'])||'',
-        blocker:get(['blocker','pending reason','block','flagged'])||'',
-        owner:get(['assignee','owner'])||'',
-        plannedGL:get(['planned','due date'])||'',
-        expectedGL:get(['expected','customer eta','due date'])||'',
-        lastAct:new Date().toISOString().slice(0,10),
-        nextMeet:'',openPts:0,auditSt:'Not Started',
-        priority:get(['priority'])||'Medium',
-        notes:get(['description','comment'])||'',
-        meetings:[],points:[],
+        jira:jiraKey, company, region, stage:stageId,
+        status:healthOf(stageId,blocker,priority,goLiveDate||dueDate),
+        mrr, prog:progOf(stageId,resolution),
+        plannedGL, expectedGL,
+        daysInStage, nextMile, blocker, owner,
+        lastAct:updatedDate||new Date().toISOString().slice(0,10),
+        nextMeet:'', openPts:0,
+        auditSt:resolution==='Done'?'Passed':'Not Started',
+        priority, notes,
+        meetings:[], points:[],
         checks:[false,false,false,false,false],
+        nps:null, sentiment:'neutral',
       });
     }
 
     if(!newAccounts.length){toast('No valid accounts found in CSV',false);return;}
 
     if(DB_MODE==='live'){
-      // ── SUPABASE: Delete all existing accounts then insert fresh ──
-      toast('Clearing old data and uploading '+newAccounts.length+' accounts...');
+      toast('Uploading '+newAccounts.length+' accounts to Supabase...');
       try{
-        // Step 1: Delete all existing accounts in DB
-        // (cascade deletes meetings and open_points too)
-        const existing=await sbAPI('GET','accounts',{select:'id'});
+        const existing=await sbAPI('GET','accounts',{select:'id'}).catch(()=>[]);
         if(existing&&existing.length){
           for(const row of existing){
             await sbAPI('DELETE','accounts',{id:'eq.'+row.id}).catch(()=>{});
           }
         }
-
-        // Step 2: Insert all new accounts
         let saved=0;
-        const insertedAccounts=[];
+        const inserted=[];
         for(const a of newAccounts){
           try{
-            const payload=mapToDB(a);
-            const result=await sbAPI('POST','accounts',{},{...payload,id:undefined});
-            if(result&&result[0]){
-              a.id=result[0].id; // assign UUID from DB
-              insertedAccounts.push(a);
-              saved++;
-            }
+            const result=await sbAPI('POST','accounts',{},{...mapToDB(a),id:undefined});
+            if(result&&result[0]){a.id=result[0].id;}else{a.id=uid();}
+            inserted.push(a);saved++;
           }catch(e){
-            console.warn('Insert failed for '+a.company+':',e.message);
-            a.id=uid(); // fallback local ID
-            insertedAccounts.push(a);
+            console.warn('Insert error:',a.company,e.message);
+            a.id=uid();inserted.push(a);
           }
         }
-
-        // Step 3: Also save raw CSV to integrations table for re-use
-        await saveIntegrationToDB('csv_backup',{
-          csv:csvText,
-          importedAt:new Date().toISOString(),
-          accountCount:saved,
-        });
-
-        accounts=insertedAccounts;
-        input.value='';
-        render();
-        toast(saved+' accounts saved to Supabase — data persists on refresh ✓');
-
+        await saveIntegrationToDB('csv_backup',{csv:csvText,importedAt:new Date().toISOString(),accountCount:saved});
+        accounts=inserted;
+        input.value='';render();
+        toast(saved+' accounts imported from Jira CSV ✓ — data saved to Supabase');
       }catch(e){
-        // Fallback: save locally only
         console.error('DB import error:',e.message);
         accounts=newAccounts.map(a=>({...a,id:uid()}));
-        input.value='';
-        render();
+        input.value='';render();
         toast('Imported locally (DB error: '+e.message+')',false);
       }
-
-    } else {
-      // Local mode — just replace in memory
+    }else{
       accounts=newAccounts.map(a=>({...a,id:uid()}));
-      input.value='';
-      render();
-      toast('Imported '+newAccounts.length+' accounts (local mode — connect DB to persist)');
+      input.value='';render();
+      toast('Imported '+newAccounts.length+' accounts from Jira CSV');
     }
   };
   reader.readAsText(file);
